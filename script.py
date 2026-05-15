@@ -387,10 +387,10 @@ async def scrape_product(context, url):
 
 # ─── Keyword Processing ───────────────────────────────────────────────────────
 
-async def process_keyword(context, keyword, writer, out_fp):
+async def process_keyword(context, keyword, writer, out_fp, min_price=None, max_price=None):
     print(f"\n {keyword}")
 
-    max_pages = int(os.getenv("SEARCH_PAGES", "5"))
+    max_pages = int(os.getenv("SEARCH_PAGES", "20"))
     max_pages = max(1, min(max_pages, 20))
 
     urls_set = set()
@@ -400,6 +400,12 @@ async def process_keyword(context, keyword, writer, out_fp):
         try:
             q = keyword.replace(" ", "+")
             search_url = f"{BASE_URL}{q}"
+            
+            # Apply price filters if provided
+            if min_price or max_price:
+                joiner = "&" if "?" in search_url else "?"
+                search_url = f"{search_url}{joiner}low-price={min_price or ''}&high-price={max_price or ''}"
+
             if page_num > 1:
                 joiner = "&" if "?" in search_url else "?"
                 search_url = f"{search_url}{joiner}page={page_num}"
@@ -569,7 +575,7 @@ async def prime_helium10_on_pdp(context):
 
 # ─── Public API (for run_pipeline.py) ──────────────────────────────────────────
 
-async def run_scraper(keywords: list[str]) -> str:
+async def run_scraper(keywords: list[str], min_price: str = None, max_price: str = None) -> str:
     """
     Run the full scraping pipeline for the given keywords.
     Returns the path to the output CSV file.
@@ -620,7 +626,7 @@ async def run_scraper(keywords: list[str]) -> str:
 
             for kw in keywords:
                 try:
-                    await process_keyword(context, kw, writer, f)
+                    await process_keyword(context, kw, writer, f, min_price, max_price)
                 except Exception as e:
                     if type(e).__name__ == "TargetClosedError":
                         print(
@@ -638,8 +644,8 @@ async def run_scraper(keywords: list[str]) -> str:
 
 # ─── CLI Entry Point ───────────────────────────────────────────────────────────
 
-def _parse_keywords_from_args() -> list[str]:
-    """Parse keywords from CLI arguments."""
+def _parse_args():
+    """Parse CLI arguments."""
     parser = argparse.ArgumentParser(description="Amazon product scraper")
     parser.add_argument(
         "--keywords",
@@ -653,8 +659,22 @@ def _parse_keywords_from_args() -> list[str]:
         default=None,
         help="Path to JSON file with suggestions (output of suggest_amazon_categories.py)",
     )
+    parser.add_argument(
+        "--min-price",
+        type=str,
+        default=None,
+        help="Minimum price filter",
+    )
+    parser.add_argument(
+        "--max-price",
+        type=str,
+        default=None,
+        help="Maximum price filter",
+    )
     args = parser.parse_args()
+    return args
 
+def _get_keywords(args) -> list[str]:
     if args.keywords:
         return [kw.strip() for kw in args.keywords.split(",") if kw.strip()]
 
@@ -668,9 +688,12 @@ def _parse_keywords_from_args() -> list[str]:
 
 
 async def main():
-    keywords = _parse_keywords_from_args()
+    args = _parse_args()
+    keywords = _get_keywords(args)
     print(f" Keywords: {keywords}\n")
-    await run_scraper(keywords)
+    if args.min_price or args.max_price:
+        print(f" Price Filter: ${args.min_price or '0'} - ${args.max_price or 'Any'}\n")
+    await run_scraper(keywords, args.min_price, args.max_price)
 
 
 if __name__ == "__main__":

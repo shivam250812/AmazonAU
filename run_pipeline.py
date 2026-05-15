@@ -19,7 +19,7 @@ Usage:
   # Run in setup mode to install Helium 10 and log in
   python run_pipeline.py --setup
 
-  # Full pipeline (all keywords, 5 pages each)
+  # Full pipeline (all keywords, 20 pages each)
   python run_pipeline.py
 """
 
@@ -115,7 +115,7 @@ def step_suggest_keywords(
 
 # ─── Step 2: Scrape Amazon ────────────────────────────────────────────────────
 
-def step_scrape_amazon(keywords: list[str], test_mode: bool):
+def step_scrape_amazon(keywords: list[str], test_mode: bool, min_price: str = None, max_price: str = None, pages: int = 20):
     """
     Run script.py with the given keywords.
     In test mode, sets SEARCH_PAGES=1.
@@ -126,6 +126,9 @@ def step_scrape_amazon(keywords: list[str], test_mode: bool):
     if test_mode:
         env["SEARCH_PAGES"] = "1"
         print("   TEST MODE: Scraping only page 1 per keyword\n")
+    else:
+        env["SEARCH_PAGES"] = str(pages)
+        print(f"   Scraping up to {pages} pages per keyword\n")
 
     keywords_str = ",".join(keywords)
     cmd = [
@@ -133,6 +136,11 @@ def step_scrape_amazon(keywords: list[str], test_mode: bool):
         str(_DIR / "script.py"),
         "--keywords", keywords_str,
     ]
+
+    if min_price:
+        cmd.extend(["--min-price", str(min_price)])
+    if max_price:
+        cmd.extend(["--max-price", str(max_price)])
 
     print(f"  Running: {' '.join(cmd)}\n")
 
@@ -263,6 +271,24 @@ def main():
         action="store_true",
         help="Open browser in setup mode to install extensions and log in",
     )
+    parser.add_argument(
+        "--min-price",
+        type=str,
+        default=None,
+        help="Minimum price filter for Amazon search",
+    )
+    parser.add_argument(
+        "--max-price",
+        type=str,
+        default=None,
+        help="Maximum price filter for Amazon search",
+    )
+    parser.add_argument(
+        "--pages",
+        type=int,
+        default=20,
+        help="Number of pages to scrape per keyword (default: 20)",
+    )
     args = parser.parse_args()
 
     start = time.time()
@@ -302,7 +328,7 @@ def main():
         )
 
     # Step 2: Scrape Amazon
-    step_scrape_amazon(keywords, args.test)
+    step_scrape_amazon(keywords, args.test, args.min_price, args.max_price, args.pages)
 
     # Step 3: Extract ASINs
     has_asins = step_extract_asins()
