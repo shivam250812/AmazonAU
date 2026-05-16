@@ -406,6 +406,10 @@ async def process_keyword(context, keyword, writer, out_fp, min_price=None, max_
                 joiner = "&" if "?" in search_url else "?"
                 search_url = f"{search_url}{joiner}low-price={min_price or ''}&high-price={max_price or ''}"
 
+            # Always sort by Best Sellers (popularity rank)
+            joiner = "&" if "?" in search_url else "?"
+            search_url = f"{search_url}{joiner}s=exact-aware-popularity-rank"
+
             if page_num > 1:
                 joiner = "&" if "?" in search_url else "?"
                 search_url = f"{search_url}{joiner}page={page_num}"
