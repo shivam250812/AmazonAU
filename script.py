@@ -86,12 +86,8 @@ async def extract_helium10_revenue(page):
 
     Returns float or None.
     """
-    CURRENCY_RE = re.compile(
-        r"30-Day Revenue[\s\S]{0,200}?([$₹€£]\s*[\d,]+(?:\.\d+)?)",
-        re.IGNORECASE,
-    )
-    ALT_CURRENCY_RE = re.compile(
-        r"30[‑-]Day Revenue[\s\S]{0,200}?([$₹€£]\s*[\d,]+(?:\.\d+)?)",
+    REVENUE_RE = re.compile(
+        r"30[‑-]Day Revenue[\s\S]{0,50}?([$₹€£]\s*[\d,]+(?:\.\d+)?|N/?A|[-‑])",
         re.IGNORECASE,
     )
 
@@ -123,23 +119,27 @@ async def extract_helium10_revenue(page):
             except Exception:
                 txt = ""
 
-            for pattern in (CURRENCY_RE, ALT_CURRENCY_RE):
-                m = pattern.search(txt)
-                if m:
-                    val = clean_money(m.group(1))
-                    if val is not None:
-                        return val
+            m = REVENUE_RE.search(txt)
+            if m:
+                match_str = m.group(1).upper().strip()
+                if match_str in ("N/A", "NA", "-", "‑"):
+                    return 0.0
+                val = clean_money(match_str)
+                if val is not None:
+                    return val
 
             await page.wait_for_timeout(500)
 
         try:
             body = await page.locator("body").inner_text()
-            for pattern in (CURRENCY_RE, ALT_CURRENCY_RE):
-                m = pattern.search(body)
-                if m:
-                    val = clean_money(m.group(1))
-                    if val is not None:
-                        return val
+            m = REVENUE_RE.search(body)
+            if m:
+                match_str = m.group(1).upper().strip()
+                if match_str in ("N/A", "NA", "-", "‑"):
+                    return 0.0
+                val = clean_money(match_str)
+                if val is not None:
+                    return val
         except Exception:
             pass
 
