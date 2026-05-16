@@ -249,7 +249,7 @@ async def create_browser(p, *, require_helium: bool = True, is_setup_mode: bool 
         )
         sys.exit(1)
 
-    if google_chrome_is_running():
+    if is_system_default_chrome_user_data(profile_path) and google_chrome_is_running():
         print(
             " Google Chrome is already running. Quit it completely, then rerun.\n",
             file=sys.stderr,

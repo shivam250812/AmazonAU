@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amazon Scraping Automation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #131921;
+            --glass-bg: rgba(35, 47, 62, 0.8);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --primary: #ff9900;
+            --primary-hover: #e38800;
+            --secondary: #146eb4;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --terminal-bg: #000000;
+            --terminal-text: #34d399;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(255, 153, 0, 0.12) 0%, transparent 50%),
+                radial-gradient(circle at 85% 30%, rgba(20, 110, 180, 0.12) 0%, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+            box-sizing: border-box;
+        }
+
+        .container {
+            max-width: 1000px;
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 24px;
+        }
+
+        @media (min-width: 768px) {
+            .container {
+                grid-template-columns: 350px 1fr;
+            }
+        }
+
+        .card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 700;
+            margin: 0 0 8px 0;
+            background: linear-gradient(to right, #ff9900, #ffb84d);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.subtitle {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin: 0 0 24px 0;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: var(--text-muted);
+        }
+
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--glass-border);
+            color: white;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 14px;
+            box-sizing: border-box;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(255, 153, 0, 0.2);
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            font-family: inherit;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.2s;
+            margin-top: 12px;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #ff9900, #e38800);
+            color: #111;
+            box-shadow: 0 4px 14px rgba(255, 153, 0, 0.3);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 6px 20px rgba(255, 153, 0, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            color: white;
+            border: 1px solid var(--glass-border);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .terminal-container {
+            display: flex;
+            flex-direction: column;
+            height: 600px;
+        }
+
+        .terminal-header {
+            background: #1e293b;
+            padding: 12px 16px;
+            border-radius: 12px 12px 0 0;
+            border-bottom: 1px solid var(--glass-border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .dot-red { background: #ef4444; }
+        .dot-yellow { background: #f59e0b; }
+        .dot-green { background: #10b981; }
+
+        .terminal-body {
+            background: var(--terminal-bg);
+            flex: 1;
+            border-radius: 0 0 12px 12px;
+            padding: 16px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--terminal-text);
+        }
+
+        .terminal-body p {
+            margin: 0;
+            white-space: pre-wrap;
+        }
+
+        .status-badge {
+            margin-left: auto;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            background: rgba(16, 185, 129, 0.2);
+            color: #34d399;
+            display: none;
+        }
+        
+        .status-badge.active {
+            display: inline-block;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Controls Panel -->
+        <div class="card">
+            <h1>Amazon Scraper</h1>
+            <p class="subtitle">Configure and run the pipeline</p>
+
+            <div class="form-group">
+                <label>Topic (for AI suggestion)</label>
+                <input type="text" id="topic" placeholder="e.g., copper water bottles">
+            </div>
+
+            <div class="form-group">
+                <label>Exact Keywords (Comma-separated, optional)</label>
+                <input type="text" id="keywords" placeholder="Skips AI if provided">
+            </div>
+
+            <div class="row">
+                <div class="form-group">
+                    <label>Min Price ($)</label>
+                    <input type="number" id="min_price" placeholder="0">
+                </div>
+                <div class="form-group">
+                    <label>Max Price ($)</label>
+                    <input type="number" id="max_price" placeholder="Any">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Pages per Keyword</label>
+                <input type="number" id="pages" value="20" min="1" max="50">
+            </div>
+
+            <button class="btn-primary" onclick="startPipeline()">Start Pipeline</button>
+            
+            <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--glass-border);">
+                <label>First time setup?</label>
+                <button class="btn-secondary" onclick="startSetup()">Run Setup (Helium 10 Login)</button>
+            </div>
+        </div>
+
+        <!-- Terminal Panel -->
+        <div class="card terminal-container" style="padding: 0; overflow: hidden;">
+            <div class="terminal-header">
+                <div class="dot dot-red"></div>
+                <div class="dot dot-yellow"></div>
+                <div class="dot dot-green"></div>
+                <span style="margin-left: 8px;">Pipeline Logs</span>
+                <span class="status-badge" id="status-badge">Running</span>
+            </div>
+            <div class="terminal-body" id="terminal">
+                <p style="color: var(--text-muted);">Waiting to start...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const terminal = document.getElementById('terminal');
+        const statusBadge = document.getElementById('status-badge');
+        let evtSource = null;
+
+        function connectLogs() {
+            if (evtSource) {
+                evtSource.close();
+            }
+            
+            terminal.innerHTML = '';
+            statusBadge.classList.add('active');
+            
+            evtSource = new EventSource('/api/logs');
+            evtSource.onmessage = function(e) {
+                const p = document.createElement('span');
+                p.textContent = e.data + '\n';
+                terminal.appendChild(p);
+                
+                // Auto-scroll
+                terminal.scrollTop = terminal.scrollHeight;
+
+                if (e.data.includes('[Process finished')) {
+                    statusBadge.classList.remove('active');
+                }
+            };
+        }
+
+        async function startPipeline() {
+            const data = {
+                topic: document.getElementById('topic').value,
+                keywords: document.getElementById('keywords').value,
+                min_price: document.getElementById('min_price').value,
+                max_price: document.getElementById('max_price').value,
+                pages: document.getElementById('pages').value
+            };
+
+            try {
+                const response = await fetch('/api/start', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                
+                if (response.ok) {
+                    connectLogs();
+                } else {
+                    const error = await response.json();
+                    alert(error.error || 'Failed to start');
+                }
+            } catch (err) {
+                alert('Connection error');
+            }
+        }
+
+        async function startSetup() {
+            try {
+                const response = await fetch('/api/setup', {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    connectLogs();
+                } else {
+                    const error = await response.json();
+                    alert(error.error || 'Failed to start');
+                }
+            } catch (err) {
+                alert('Connection error');
+            }
+        }
+    </script>
+</body>
+</html>

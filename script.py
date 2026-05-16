@@ -422,11 +422,15 @@ async def process_keyword(context, keyword, writer, out_fp, min_price=None, max_
             except Exception:
                 pass
 
-            links = await page.locator("a.a-link-normal.s-no-outline").all()
-            for link in links:
-                href = await link.get_attribute("href")
-                if href and "/dp/" in href:
-                    urls_set.add(urljoin(AMAZON_ORIGIN, href.split("?")[0]))
+            try:
+                hrefs = await page.locator("a.a-link-normal.s-no-outline").evaluate_all(
+                    "elements => elements.map(e => e.getAttribute('href'))"
+                )
+                for href in hrefs:
+                    if href and "/dp/" in href:
+                        urls_set.add(urljoin(AMAZON_ORIGIN, href.split("?")[0]))
+            except Exception as e:
+                print(f"        Error extracting links on page {page_num}: {e}")
 
             if len(urls_set) == before_count:
                 break
