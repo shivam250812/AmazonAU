@@ -280,6 +280,29 @@ async def run_seller_central(
         print(f" No ASINs found in {input_csv}")
         return output_csv
 
+    # RESUME LOGIC: Check existing output_csv
+    processed_asins = set()
+    file_exists = os.path.exists(output_csv)
+    if file_exists:
+        try:
+            with open(output_csv, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    asin = row.get("ASIN", "").strip()
+                    if asin:
+                        processed_asins.add(asin)
+        except Exception:
+            file_exists = False
+
+    asins_to_process = [a for a in asins if a not in processed_asins]
+
+    if not asins_to_process:
+        print(" All ASINs already processed. Nothing to do.")
+        return output_csv
+
+    if processed_asins:
+        print(f" Resuming... {len(processed_asins)} already processed. {len(asins_to_process)} left to check.")
+
     async with async_playwright() as p:
 
         context = await create_browser(p, require_helium=False)
@@ -288,23 +311,25 @@ async def run_seller_central(
 
         await ensure_logged_in(page)
 
+        mode = "a" if file_exists else "w"
         with open(
             output_csv,
-            "w",
+            mode,
             newline="",
             encoding="utf-8"
         ) as f:
 
             writer = csv.writer(f)
 
-            writer.writerow([
-                "ASIN",
-                "TITLE",
-                "STATUS",
-                "MESSAGE",
-            ])
+            if not file_exists:
+                writer.writerow([
+                    "ASIN",
+                    "TITLE",
+                    "STATUS",
+                    "MESSAGE",
+                ])
 
-            for asin in asins:
+            for asin in asins_to_process:
 
                 result = await check_asin(
                     page,

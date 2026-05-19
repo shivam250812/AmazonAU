@@ -203,7 +203,7 @@ def step_seller_central():
     result = subprocess.run(
         cmd,
         cwd=str(_DIR),
-        timeout=3600,
+        timeout=None,
     )
 
     if result.returncode != 0:

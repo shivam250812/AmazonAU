@@ -71,6 +71,12 @@ def extract_asin(url):
     match = re.search(r"/dp/([A-Z0-9]{10})", url)
     return match.group(1) if match else "N/A"
 
+async def abort_media(route):
+    if route.request.resource_type in ("image", "media", "font"):
+        await route.abort()
+    else:
+        await route.continue_()
+
 
 # ─── Helium 10 Revenue Extraction ─────────────────────────────────────────────
 
@@ -106,7 +112,7 @@ async def extract_helium10_revenue(page):
         ).first
 
         try:
-            await panel_locator.wait_for(state="visible", timeout=25_000)
+            await panel_locator.wait_for(state="visible", timeout=15_000)
         except Exception:
             print("        Helium panel not detected — skipping revenue for this product.")
             return "NA"
@@ -252,17 +258,46 @@ async def extract_shipper_and_seller(page):
 
     try:
         # Method 1: tabular buybox
-        labels = page.locator(".tabular-buybox-text")
-        values = page.locator(".tabular-buybox-text-message")
-        label_count = await labels.count()
-        val_count = await values.count()
-        for i in range(label_count):
+        rows = page.locator(".tabular-buybox-row")
+        row_count = await rows.count()
+        if row_count > 0:
+            for i in range(row_count):
+                try:
+                    row = rows.nth(i)
+                    label_el = row.locator(".tabular-buybox-text, .tabular-buybox-label").first
+                    value_el = row.locator(".tabular-buybox-text-message, .tabular-buybox-value-container").first
+                    if not await label_el.count() or not await value_el.count():
+                        continue
+                    label_txt = (await label_el.inner_text()).strip().lower()
+                    value_txt = (await value_el.inner_text()).strip()
+                    if not value_txt:
+                        continue
+                    if "shipper" in label_txt and "seller" in label_txt:
+                        shipper = value_txt
+                        seller = value_txt
+                    else:
+                        if "ship" in label_txt:
+                            shipper = value_txt
+                        if "sold" in label_txt or "seller" in label_txt:
+                            seller = value_txt
+                except:
+                    pass
+
+        if shipper != "N/A" or seller != "N/A":
+            return shipper, seller
+
+        # Method 2: offer-display-feature (newer Amazon UI)
+        labels = page.locator(".offer-display-feature-label")
+        values = page.locator(".offer-display-feature-text")
+        count = min(await labels.count(), await values.count())
+        for i in range(count):
             try:
                 label_txt = (await labels.nth(i).inner_text()).strip().lower()
-                value_txt = (await values.nth(i).inner_text()).strip() if i < val_count else ""
+                value_txt = (await values.nth(i).inner_text()).strip()
+                # Use only the first line of the value text if multiple lines are present
+                value_txt = value_txt.split("\n")[0].strip()
                 if not value_txt:
                     continue
-                # Combined "Shipper / Seller" label — assign same value to both
                 if "shipper" in label_txt and "seller" in label_txt:
                     shipper = value_txt
                     seller = value_txt
@@ -277,36 +312,13 @@ async def extract_shipper_and_seller(page):
         if shipper != "N/A" or seller != "N/A":
             return shipper, seller
 
-        # Method 2: #merchant-info
-        for sel in ["#merchant-info", "#soldByThirdParty", "#sellerProfileTriggerId"]:
-            try:
-                el = page.locator(sel).first
-                if await el.count():
-                    txt = (await el.inner_text()).strip()
-                    if not txt:
-                        continue
-                    m = re.search(r"sold by\s+(.+?)(?:\.|$)", txt, re.IGNORECASE)
-                    if m:
-                        seller = m.group(1).strip()
-                    m = re.search(r"ships from\s+(.+?)(?:\s+and|\.\band\b|$)", txt, re.IGNORECASE)
-                    if m:
-                        shipper = m.group(1).strip()
-                    if seller != "N/A" or shipper != "N/A":
-                        break
-            except:
-                pass
-
-        if shipper != "N/A" or seller != "N/A":
-            return shipper, seller
-
-        # Method 3: buybox feature div
+        # Method 3: buybox feature div regex
         for buybox_sel in ["#buybox", "#desktop_buybox", "#buyBoxAccordion", "#apex_desktop"]:
             try:
                 box = page.locator(buybox_sel).first
                 if not await box.count():
                     continue
                 txt = (await box.inner_text()) or ""
-                # Check for combined "Shipper / Seller" label first
                 m = re.search(r"Shipper\s*/\s*Seller[:\s]+([^\n]+)", txt, re.IGNORECASE)
                 if m:
                     val = m.group(1).strip().split("\n")[0].strip()
@@ -327,19 +339,27 @@ async def extract_shipper_and_seller(page):
         if shipper != "N/A" or seller != "N/A":
             return shipper, seller
 
-        # Method 4: table rows
-        rows = page.locator("tr")
-        row_count = await rows.count()
-        for i in range(min(row_count, 40)):
+        # Method 4: #merchant-info
+        for sel in ["#merchant-info", "#soldByThirdParty", "#sellerProfileTriggerId"]:
             try:
-                cells = rows.nth(i).locator("td")
-                if await cells.count() >= 2:
-                    label_txt = (await cells.nth(0).inner_text()).strip().lower()
-                    value_txt = (await cells.nth(1).inner_text()).strip()
-                    if "ship" in label_txt and value_txt:
-                        shipper = value_txt
-                    if ("sold" in label_txt or "seller" in label_txt) and value_txt:
-                        seller = value_txt
+                el = page.locator(sel).first
+                if await el.count():
+                    txt = (await el.inner_text()).strip()
+                    if not txt:
+                        continue
+                    if sel == "#sellerProfileTriggerId":
+                        seller = txt
+                        if shipper == "N/A":
+                            shipper = txt
+                    else:
+                        m = re.search(r"sold by\s+(.+?)(?:\.|$)", txt, re.IGNORECASE)
+                        if m:
+                            seller = m.group(1).strip()
+                        m = re.search(r"ships from\s+(.+?)(?:\s+and|\.\band\b|$)", txt, re.IGNORECASE)
+                        if m:
+                            shipper = m.group(1).strip()
+                    if seller != "N/A" or shipper != "N/A":
+                        break
             except:
                 pass
 
@@ -349,7 +369,6 @@ async def extract_shipper_and_seller(page):
         # Method 5: full body scan
         try:
             body = (await page.locator("body").inner_text()) or ""
-            # Check for combined "Shipper / Seller" first
             m = re.search(r"Shipper\s*/\s*Seller[:\s]+([^\n]{2,60})", body, re.IGNORECASE)
             if m:
                 val = m.group(1).strip()
@@ -377,14 +396,14 @@ async def scrape_product(context, url):
     page = await context.new_page()
 
     try:
+        await page.route("**/*", abort_media)
         await page.goto(url, timeout=30000)
         await page.wait_for_load_state("domcontentloaded", timeout=30000)
-        # Wait for the buybox/seller info to fully render via JS
+        # Smart wait for the buybox to attach
         try:
-            await page.wait_for_load_state("networkidle", timeout=10000)
+            await page.wait_for_selector("#buybox, #merchant-info, .tabular-buybox-text", state="attached", timeout=5000)
         except Exception:
             pass
-        await asyncio.sleep(3)
     except:
         await page.close()
         return None
@@ -455,9 +474,13 @@ async def process_keyword(context, keyword, writer, out_fp, min_price=None, max_
                 search_url = f"{search_url}{joiner}page={page_num}"
 
             print(f"   • search page {page_num}/{max_pages}")
+            await page.route("**/*", abort_media)
             await page.goto(search_url, timeout=60000)
             await page.wait_for_load_state("domcontentloaded", timeout=60000)
-            await asyncio.sleep(2)
+            try:
+                await page.wait_for_selector("a.a-link-normal.s-no-outline", state="attached", timeout=5000)
+            except Exception:
+                pass
 
             try:
                 body_txt = (await page.locator("body").inner_text()) or ""
@@ -493,29 +516,38 @@ async def process_keyword(context, keyword, writer, out_fp, min_price=None, max_
 
     urls = list(urls_set)
 
-    for url in urls:
-        product = await scrape_product(context, url)
-        if not product:
-            continue
+    semaphore = asyncio.Semaphore(4)
+    write_lock = asyncio.Lock()
 
-        print(
-            f" ASIN: {product['asin']} | ${product['price']} "
-            f"| Shipper: {product['shipper']} | Seller: {product['seller']}"
-        )
+    async def bound_scrape(url):
+        async with semaphore:
+            product = await scrape_product(context, url)
+            if not product:
+                return
 
-        writer.writerow([
-            keyword,
-            product["asin"],
-            product["price"],
-            product["revenue"],
-            product["rating"],
-            product["reviews"],
-            product["sellers"],
-            product["shipper"],
-            product["seller"],
-            product["url"],
-        ])
-        out_fp.flush()
+            print(
+                f" ASIN: {product['asin']} | ${product['price']} "
+                f"| Shipper: {product['shipper']} | Seller: {product['seller']}"
+            )
+
+            async with write_lock:
+                writer.writerow([
+                    keyword,
+                    product["asin"],
+                    product["price"],
+                    product["revenue"],
+                    product["rating"],
+                    product["reviews"],
+                    product["sellers"],
+                    product["shipper"],
+                    product["seller"],
+                    product["url"],
+                ])
+                out_fp.flush()
+
+    tasks = [bound_scrape(url) for url in urls]
+    if tasks:
+        await asyncio.gather(*tasks)
 
 
 # ─── Helium 10 Login & Warmup ─────────────────────────────────────────────────
