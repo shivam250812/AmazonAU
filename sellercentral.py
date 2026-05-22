@@ -11,6 +11,7 @@ from playwright.async_api import async_playwright
 
 # Shared Chrome profile setup
 from chrome_profile import create_browser
+from notifications import send_email_notification
 
 # =========================================================
 # CONFIG
@@ -48,6 +49,13 @@ async def ensure_logged_in(page):
             "   Please log in manually in the Chrome window.\n"
             "   Waiting up to 5 minutes for login...\n"
         )
+        try:
+            send_email_notification(
+                subject="Amazon Scraper: Seller Central Login Required",
+                message="Seller Central is asking for a login. The script will wait up to 5 minutes for you to log in via the Chrome window."
+            )
+        except Exception:
+            pass
         # Wait up to 5 minutes, checking every 10 seconds
         for i in range(30):
             await asyncio.sleep(10)

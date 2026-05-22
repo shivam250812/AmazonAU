@@ -119,6 +119,7 @@ def step_scrape_amazon(keywords: list[str], test_mode: bool, min_price: str = No
     """
     Run script.py with the given keywords.
     In test mode, sets SEARCH_PAGES=1.
+    Returns True on success, False on failure.
     """
     _banner(2, "Scrape Amazon Products")
 
@@ -152,15 +153,16 @@ def step_scrape_amazon(keywords: list[str], test_mode: bool, min_price: str = No
     )
 
     if result.returncode != 0:
-        print(" script.py failed.", file=sys.stderr)
-        sys.exit(1)
+        print(f"  script.py failed for this keyword. Skipping...", file=sys.stderr)
+        return False
 
     output_csv = _DIR / "output.csv"
     if not output_csv.exists() or output_csv.stat().st_size == 0:
-        print(" output.csv was not created or is empty.", file=sys.stderr)
-        sys.exit(1)
+        print("  output.csv was not created or is empty. Skipping...", file=sys.stderr)
+        return False
 
     print(f"\n   Scraper output: {output_csv}")
+    return True
 
 
 # ─── Step 3: Extract ASINs ────────────────────────────────────────────────────
@@ -240,6 +242,11 @@ def main():
         help="Test mode: use only the first keyword and scrape only page 1",
     )
     parser.add_argument(
+        "--quick-test",
+        action="store_true",
+        help="Quick test mode: Generates ALL keywords, but only scrapes 4 products per keyword",
+    )
+    parser.add_argument(
         "--topic",
         default="handmade / artisan home and lifestyle products",
         help="Topic for keyword suggestion (passed to suggest_amazon_categories.py)",
@@ -289,6 +296,11 @@ def main():
         default=20,
         help="Number of pages to scrape per keyword (default: 20)",
     )
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="Clear old CSV data before starting a new run",
+    )
     args = parser.parse_args()
 
     start = time.time()
@@ -297,6 +309,10 @@ def main():
     print("    AMAZON ONE-CLICK PIPELINE")
     if args.test:
         print("    TEST MODE (1 keyword, 1 page)")
+    if args.quick_test:
+        print("    QUICK TEST MODE (All keywords, 4 products each)")
+        os.environ["MAX_PRODUCTS_PER_KEYWORD"] = "4"
+        args.pages = 1
     if args.setup:
         print("     SETUP MODE")
     print("═" * 60)
@@ -327,20 +343,48 @@ def main():
             args.topic, args.marketplace, args.count, args.test
         )
 
-    # Step 2: Scrape Amazon
-    step_scrape_amazon(keywords, args.test, args.min_price, args.max_price, args.pages)
+    # Clear old data if --fresh flag is used
+    if args.fresh:
+        for csv_name in ["output.csv", "input.csv", "gated_output.csv", "final_report.csv"]:
+            csv_path = _DIR / csv_name
+            if csv_path.exists():
+                csv_path.unlink()
+                print(f"   Deleted old {csv_name}")
+        print()
 
-    # Step 3: Extract ASINs
-    has_asins = step_extract_asins()
+    print(f"\n   Starting Keyword-by-Keyword Pipeline for {len(keywords)} keywords...")
+    for i, kw in enumerate(keywords, 1):
+        print(f"\n" + "═" * 50)
+        print(f"   Processing Keyword {i}/{len(keywords)}: '{kw}'")
+        print("═" * 50)
 
-    # Step 4: Seller Central (only if we have ASINs)
-    if has_asins and not args.skip_seller_central:
-        step_seller_central()
-    elif args.skip_seller_central:
-        print("\n    Skipping Seller Central (--skip-seller-central)")
+        # Step 2: Scrape Amazon
+        scrape_ok = step_scrape_amazon([kw], args.test, args.min_price, args.max_price, args.pages)
+        if not scrape_ok:
+            print(f"   Skipping remaining steps for '{kw}'...")
+            continue
 
-    # Step 5: Merge
-    step_merge()
+        # Step 3: Extract ASINs
+        has_asins = step_extract_asins()
+
+        # Step 4: Seller Central (only if we have ASINs)
+        if has_asins and not args.skip_seller_central:
+            step_seller_central()
+        elif args.skip_seller_central:
+            print("\n    Skipping Seller Central (--skip-seller-central)")
+
+        # Step 5: Merge
+        step_merge()
+        
+        try:
+            sys.path.insert(0, str(_DIR))
+            from notifications import send_email_notification
+            send_email_notification(
+                subject=f"Amazon Scraper: Keyword Complete - '{kw}'",
+                message=f"Processing for keyword '{kw}' ({i} of {len(keywords)}) has successfully finished and the results have been merged into the final report."
+            )
+        except Exception as notif_e:
+            print(f"Could not send keyword completion notification: {notif_e}")
 
     elapsed = time.time() - start
     _done_banner()
@@ -352,6 +396,31 @@ def main():
     print(f"     • final_report.csv    — Merged final report")
     print()
 
+    try:
+        sys.path.insert(0, str(_DIR))
+        from notifications import send_email_notification
+        send_email_notification(
+            subject="Amazon Scraper: Pipeline Finished Successfully! 🎉",
+            message=f"The automation pipeline has completed successfully.\n\nTotal time: {elapsed / 60:.1f} minutes.\nKeywords processed: {len(keywords)}\n\nThe final report is ready at:\n{_DIR}/final_report.csv"
+        )
+    except Exception as notif_e:
+        print(f"Could not send success notification: {notif_e}")
+
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        try:
+            # Import dynamically to avoid circular imports if any
+            sys.path.insert(0, str(_DIR))
+            from notifications import send_email_notification
+            send_email_notification(
+                subject="Amazon Scraper: Pipeline Stopped", 
+                message=f"The pipeline encountered a fatal error:\n\n{traceback.format_exc()}"
+            )
+        except Exception as notif_e:
+            print(f"Could not send failure notification: {notif_e}")
+        sys.exit(1)

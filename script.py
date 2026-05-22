@@ -34,6 +34,7 @@ from chrome_profile import (
     create_browser,
     purge_helium10_storage,
 )
+from notifications import send_email_notification
 
 # ─── Config ────────────────────────────────────────────────────────────────────
 
@@ -516,6 +517,10 @@ async def process_keyword(context, keyword, writer, out_fp, min_price=None, max_
 
     urls = list(urls_set)
 
+    max_prods = os.getenv("MAX_PRODUCTS_PER_KEYWORD")
+    if max_prods and max_prods.isdigit():
+        urls = urls[:int(max_prods)]
+
     semaphore = asyncio.Semaphore(4)
     write_lock = asyncio.Lock()
 
@@ -622,6 +627,10 @@ async def prime_helium10_on_pdp(context):
                 "   • To skip this wait: SKIP_HELIUM_WARMUP=1\n",
                 file=sys.stderr,
             )
+            send_email_notification(
+                subject="Amazon Scraper: Action Required",
+                message="Helium 10 did not show its panel in 60s. Please check the Chrome window."
+            )
             return
 
         revenue = await extract_helium10_revenue(page)
@@ -634,6 +643,10 @@ async def prime_helium10_on_pdp(context):
             "   This usually means Helium 10 is asking you to sign in.\n"
             "   Please sign in once in the Chrome window, then wait.\n",
             file=sys.stderr,
+        )
+        send_email_notification(
+            subject="Amazon Scraper: Action Required",
+            message="Helium 10 is asking for a login or did not load revenue. Please sign in via the Chrome window."
         )
 
         max_sec = int(os.getenv("HELIUM_LOGIN_MAX_WAIT_SEC", "900"))
@@ -695,13 +708,18 @@ async def run_scraper(keywords: list[str], min_price: str = None, max_price: str
         else:
             print("  Skipping automatic Helium warm-up.\n")
 
-        with open(OUTPUT_FILE, "w", newline="\n", encoding="utf-8") as f:
+        file_exists = Path(OUTPUT_FILE).exists()
+        mode = "a" if file_exists else "w"
+
+        with open(OUTPUT_FILE, mode, newline="\n", encoding="utf-8") as f:
             writer = csv.writer(f)
-            writer.writerow([
-                "Keyword", "ASIN", "Price", "Revenue", "Rating",
-                "Reviews", "Sellers", "Shipper", "Seller", "URL",
-            ])
-            f.flush()
+            if not file_exists:
+                writer.writerow([
+                    "Keyword", "ASIN", "Price", "Revenue", "Rating",
+                    "Reviews", "Sellers", "Shipper", "Seller", "URL",
+                ])
+                f.flush()
+
             print(f"\n Writing rows to: {OUTPUT_FILE}\n")
 
             for kw in keywords:

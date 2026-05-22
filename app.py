@@ -39,6 +39,9 @@ def run_setup():
 
     log_queue.put("[Starting Setup...]\n")
     
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
+
     cmd = [sys.executable, "run_pipeline.py", "--setup"]
     current_process = subprocess.Popen(
         cmd,
@@ -46,6 +49,7 @@ def run_setup():
         stderr=subprocess.STDOUT,
         text=True,
         bufsize=1, # Line buffered
+        env=env,
         cwd=os.path.dirname(os.path.abspath(__file__))
     )
     
@@ -87,13 +91,17 @@ def start_pipeline():
             break
 
     log_queue.put(f"[Starting Pipeline: {' '.join(cmd)}]\n")
-    
+
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
+
     current_process = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
         bufsize=1, # Line buffered
+        env=env,
         cwd=os.path.dirname(os.path.abspath(__file__))
     )
     
