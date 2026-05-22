@@ -41,15 +41,15 @@ _PYTHON = sys.executable  # Use the same Python interpreter
 # ─── Banners ───────────────────────────────────────────────────────────────────
 
 def _banner(step: int, title: str):
-    print(f"\n{'━' * 60}")
-    print(f"  STEP {step} │ {title}")
-    print(f"{'━' * 60}\n")
+    print(f"\n{'-' * 60}")
+    print(f"  STEP {step} | {title}")
+    print(f"{'-' * 60}\n")
 
 
 def _done_banner():
-    print(f"\n{'═' * 60}")
+    print(f"\n{'=' * 60}")
     print(f"    PIPELINE COMPLETE")
-    print(f"{'═' * 60}\n")
+    print(f"{'=' * 60}\n")
 
 
 # ─── Step 1: Suggest Keywords ─────────────────────────────────────────────────
@@ -301,14 +301,14 @@ def main():
 
     start = time.time()
 
-    print("\n" + "═" * 60)
+    print("\n" + "=" * 60)
     print("    AMAZON ONE-CLICK PIPELINE")
     if args.test:
         print("    TEST MODE (1 keyword, 1 page)")
 
     if args.setup:
         print("     SETUP MODE")
-    print("═" * 60)
+    print("=" * 60)
 
     if args.setup:
         print("\n  Preparing fresh Chrome profile...")
@@ -347,9 +347,9 @@ def main():
 
     print(f"\n   Starting Keyword-by-Keyword Pipeline for {len(keywords)} keywords...")
     for i, kw in enumerate(keywords, 1):
-        print(f"\n" + "═" * 50)
+        print(f"\n" + "=" * 50)
         print(f"   Processing Keyword {i}/{len(keywords)}: '{kw}'")
-        print("═" * 50)
+        print("=" * 50)
 
         # Step 2: Scrape Amazon
         scrape_ok = step_scrape_amazon([kw], args.test, args.min_price, args.max_price, args.pages)
