@@ -241,11 +241,7 @@ def main():
         action="store_true",
         help="Test mode: use only the first keyword and scrape only page 1",
     )
-    parser.add_argument(
-        "--quick-test",
-        action="store_true",
-        help="Quick test mode: Generates ALL keywords, but only scrapes 4 products per keyword",
-    )
+
     parser.add_argument(
         "--topic",
         default="handmade / artisan home and lifestyle products",
@@ -309,10 +305,7 @@ def main():
     print("    AMAZON ONE-CLICK PIPELINE")
     if args.test:
         print("    TEST MODE (1 keyword, 1 page)")
-    if args.quick_test:
-        print("    QUICK TEST MODE (All keywords, 4 products each)")
-        os.environ["MAX_PRODUCTS_PER_KEYWORD"] = "4"
-        args.pages = 1
+
     if args.setup:
         print("     SETUP MODE")
     print("═" * 60)

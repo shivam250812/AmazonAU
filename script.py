@@ -517,10 +517,6 @@ async def process_keyword(context, keyword, writer, out_fp, min_price=None, max_
 
     urls = list(urls_set)
 
-    max_prods = os.getenv("MAX_PRODUCTS_PER_KEYWORD")
-    if max_prods and max_prods.isdigit():
-        urls = urls[:int(max_prods)]
-
     semaphore = asyncio.Semaphore(4)
     write_lock = asyncio.Lock()
 
