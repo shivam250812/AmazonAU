@@ -12,6 +12,10 @@ import argparse
 import csv
 import sys
 
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 
 def merge_results(
     scraper_csv: str = "output.csv",
