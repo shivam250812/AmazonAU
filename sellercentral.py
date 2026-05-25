@@ -147,17 +147,6 @@ async def check_asin(page, asin):
         await asyncio.sleep(3)
 
         # -------------------------------------------------
-        # SAVE SCREENSHOT
-        # -------------------------------------------------
-
-        os.makedirs("screenshots", exist_ok=True)
-
-        await page.screenshot(
-            path=f"screenshots/{asin}.png",
-            full_page=True
-        )
-
-        # -------------------------------------------------
         # GET PAGE TEXT
         # -------------------------------------------------
 
@@ -182,9 +171,10 @@ async def check_asin(page, asin):
 
         # GATED
         if (
-            "you need approval to list in this brand" in combined
+            "you need approval to list" in combined
             or "apply to sell" in combined
             or "request approval" in combined
+            or "approval required" in combined
         ):
 
             status = "GATED"
@@ -355,7 +345,6 @@ async def run_seller_central(
 
         print("\n Done")
         print(f" Output saved: {output_csv}")
-        print(" Screenshots saved in screenshots/")
 
         await context.close()
 

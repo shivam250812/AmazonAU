@@ -347,37 +347,51 @@ def main():
 
     print(f"\n   Starting Keyword-by-Keyword Pipeline for {len(keywords)} keywords...")
     for i, kw in enumerate(keywords, 1):
-        print(f"\n" + "=" * 50)
-        print(f"   Processing Keyword {i}/{len(keywords)}: '{kw}'")
-        print("=" * 50)
-
-        # Step 2: Scrape Amazon
-        scrape_ok = step_scrape_amazon([kw], args.test, args.min_price, args.max_price, args.pages)
-        if not scrape_ok:
-            print(f"   Skipping remaining steps for '{kw}'...")
-            continue
-
-        # Step 3: Extract ASINs
-        has_asins = step_extract_asins()
-
-        # Step 4: Seller Central (only if we have ASINs)
-        if has_asins and not args.skip_seller_central:
-            step_seller_central()
-        elif args.skip_seller_central:
-            print("\n    Skipping Seller Central (--skip-seller-central)")
-
-        # Step 5: Merge
-        step_merge()
-        
         try:
-            sys.path.insert(0, str(_DIR))
-            from notifications import send_email_notification
-            send_email_notification(
-                subject=f"Amazon Scraper: Keyword Complete - '{kw}'",
-                message=f"Processing for keyword '{kw}' ({i} of {len(keywords)}) has successfully finished and the results have been merged into the final report."
-            )
-        except Exception as notif_e:
-            print(f"Could not send keyword completion notification: {notif_e}")
+            print(f"\n" + "=" * 50)
+            print(f"   Processing Keyword {i}/{len(keywords)}: '{kw}'")
+            print("=" * 50)
+
+            # Step 2: Scrape Amazon
+            scrape_ok = step_scrape_amazon([kw], args.test, args.min_price, args.max_price, args.pages)
+            if not scrape_ok:
+                print(f"   Skipping remaining steps for '{kw}'...")
+                continue
+
+            # Step 3: Extract ASINs
+            has_asins = step_extract_asins()
+
+            # Step 4: Seller Central (only if we have ASINs)
+            if has_asins and not args.skip_seller_central:
+                step_seller_central()
+            elif args.skip_seller_central:
+                print("\n    Skipping Seller Central (--skip-seller-central)")
+
+            # Step 5: Merge
+            step_merge()
+
+            try:
+                sys.path.insert(0, str(_DIR))
+                from notifications import send_email_notification
+                send_email_notification(
+                    subject=f"Amazon Scraper: Keyword Complete - '{kw}'",
+                    message=f"Processing for keyword '{kw}' ({i} of {len(keywords)}) has successfully finished and the results have been merged into the final report."
+                )
+            except Exception as notif_e:
+                print(f"Could not send keyword completion notification: {notif_e}")
+
+        except Exception as kw_err:
+            print(f"\n   ERROR processing keyword '{kw}': {kw_err}")
+            print(f"   Continuing to next keyword...\n")
+            try:
+                sys.path.insert(0, str(_DIR))
+                from notifications import send_email_notification
+                send_email_notification(
+                    subject=f"Amazon Scraper: Keyword Failed - '{kw}'",
+                    message=f"Keyword '{kw}' ({i} of {len(keywords)}) failed with error:\n{kw_err}\n\nContinuing to next keyword."
+                )
+            except Exception:
+                pass
 
     elapsed = time.time() - start
     _done_banner()

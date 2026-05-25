@@ -36,6 +36,15 @@ from chrome_profile import (
 )
 from notifications import send_email_notification
 
+# ─── Platform Safety ──────────────────────────────────────────────────────────
+# Fix Unicode crashes on Windows terminals (cp1252 can't render special chars)
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 # ─── Config ────────────────────────────────────────────────────────────────────
 
 DEFAULT_KEYWORDS = ["copper water dispenser", "standing desk"]
@@ -73,10 +82,61 @@ def extract_asin(url):
     return match.group(1) if match else "N/A"
 
 async def abort_media(route):
-    if route.request.resource_type in ("image", "media", "font"):
-        await route.abort()
-    else:
-        await route.continue_()
+    try:
+        if route.request.resource_type in ("image", "media", "font"):
+            await route.abort()
+        else:
+            await route.continue_()
+    except Exception:
+        pass
+
+
+# ─── Delivery Postcode ────────────────────────────────────────────────────────
+
+DELIVERY_POSTCODE = os.getenv("DELIVERY_POSTCODE", "10001")
+
+
+async def set_amazon_postcode(page, zipcode=None):
+    """Set a consistent delivery postcode so prices/availability are stable."""
+    zipcode = zipcode or DELIVERY_POSTCODE
+    try:
+        deliver_btn = page.locator(
+            "#glow-ingress-block, #nav-global-location-popover-link"
+        ).first
+        if not await deliver_btn.count():
+            return False
+        await deliver_btn.click()
+        await page.wait_for_timeout(2000)
+
+        zip_input = page.locator("#GLUXZipUpdateInput").first
+        if not await zip_input.count():
+            return False
+        await zip_input.fill("")
+        await zip_input.type(zipcode, delay=50)
+
+        apply_btn = page.locator(
+            "#GLUXZipUpdate input[type='submit'], #GLUXZipUpdate .a-button-input"
+        ).first
+        if await apply_btn.count():
+            await apply_btn.click()
+            await page.wait_for_timeout(2000)
+
+        # Close the confirmation popup if present
+        try:
+            done_btn = page.locator(
+                "button[name='glowDoneButton'], #GLUXConfirmClose"
+            ).first
+            if await done_btn.count():
+                await done_btn.click()
+                await page.wait_for_timeout(1000)
+        except Exception:
+            pass
+
+        print(f"   Delivery postcode set to {zipcode}")
+        return True
+    except Exception as e:
+        print(f"   Could not set delivery postcode: {e}")
+    return False
 
 
 # ─── Helium 10 Revenue Extraction ─────────────────────────────────────────────
@@ -405,8 +465,11 @@ async def scrape_product(context, url):
             await page.wait_for_selector("#buybox, #merchant-info, .tabular-buybox-text", state="attached", timeout=5000)
         except Exception:
             pass
-    except:
-        await page.close()
+    except Exception:
+        try:
+            await page.close()
+        except Exception:
+            pass
         return None
 
     price = None
@@ -420,17 +483,32 @@ async def scrape_product(context, url):
     try:
         price_text = await page.locator(".a-price .a-offscreen").first.inner_text()
         price = clean_price(price_text)
-    except:
+    except Exception:
         pass
 
-    rating, reviews = await extract_rating_and_reviews(page)
-    sellers = await extract_seller_count(page)
-    shipper, seller = await extract_shipper_and_seller(page)
-    revenue = await extract_helium10_revenue(page)
+    try:
+        rating, reviews = await extract_rating_and_reviews(page)
+    except Exception:
+        pass
+    try:
+        sellers = await extract_seller_count(page)
+    except Exception:
+        pass
+    try:
+        shipper, seller = await extract_shipper_and_seller(page)
+    except Exception:
+        pass
+    try:
+        revenue = await extract_helium10_revenue(page)
+    except Exception:
+        pass
 
     asin = extract_asin(url)
 
-    await page.close()
+    try:
+        await page.close()
+    except Exception:
+        pass
 
     return {
         "asin": asin,
@@ -517,7 +595,8 @@ async def process_keyword(context, keyword, writer, out_fp, min_price=None, max_
 
     urls = list(urls_set)
 
-    semaphore = asyncio.Semaphore(4)
+    # Reduced to 1 to prevent memory crashes on 4GB VPS
+    semaphore = asyncio.Semaphore(1)
     write_lock = asyncio.Lock()
 
     async def bound_scrape(url):
@@ -548,7 +627,10 @@ async def process_keyword(context, keyword, writer, out_fp, min_price=None, max_
 
     tasks = [bound_scrape(url) for url in urls]
     if tasks:
-        await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for r in results:
+            if isinstance(r, Exception):
+                print(f"      Product scrape error (skipped): {r}")
 
 
 # ─── Helium 10 Login & Warmup ─────────────────────────────────────────────────
@@ -604,6 +686,7 @@ async def prime_helium10_on_pdp(context):
     if os.getenv("SKIP_HELIUM_WARMUP", "0") == "1":
         return
 
+    max_sec = int(os.getenv("HELIUM_LOGIN_MAX_WAIT_SEC", "900"))
     url = os.getenv("HELIUM_WARMUP_DP", "https://www.amazon.com/dp/B08LVBV9KX")
     page = await context.new_page()
     try:
@@ -629,30 +712,17 @@ async def prime_helium10_on_pdp(context):
             )
             return
 
+        # "NA" is a valid response -- the warmup product just has no data.
+        # Both numeric revenue and "NA" prove Helium 10 is loaded and working.
         revenue = await extract_helium10_revenue(page)
         if revenue is not None:
-            print(" Helium 10 is active and returning revenue values.\n")
+            print(f" Helium 10 is active (warmup revenue: {revenue}).\n")
             return
 
-        print(
-            "\n Helium 10 panel is visible but revenue was not found.\n"
-            "   This usually means Helium 10 is asking you to sign in.\n"
-            "   Please sign in once in the Chrome window, then wait.\n",
-            file=sys.stderr,
-        )
-        send_email_notification(
-            subject="Amazon Scraper: Action Required",
-            message="Helium 10 is asking for a login or did not load revenue. Please sign in via the Chrome window."
-        )
-
-        max_sec = int(os.getenv("HELIUM_LOGIN_MAX_WAIT_SEC", "900"))
-        print(f" Waiting up to {max_sec}s for a revenue value to appear…\n")
-        for _ in range(max_sec):
-            revenue = await extract_helium10_revenue(page)
-            if revenue is not None:
-                print(" Helium 10 revenue detected after login.\n")
-                return
-            await page.wait_for_timeout(1000)
+        # revenue is None -- should be extremely rare.
+        # Panel was visible, so Helium is probably fine. Continue without blocking.
+        print(" Helium 10 panel visible but revenue extraction returned None.")
+        print(" Continuing -- Helium will be retried on each product page.\n")
     except Exception as e:
         print(f" Helium warm-up navigation failed: {e}", file=sys.stderr)
     finally:
@@ -704,10 +774,26 @@ async def run_scraper(keywords: list[str], min_price: str = None, max_price: str
         else:
             print("  Skipping automatic Helium warm-up.\n")
 
+        # Set a consistent delivery postcode for stable pricing
+        if DELIVERY_POSTCODE:
+            _pc_page = await context.new_page()
+            try:
+                await _pc_page.goto(
+                    AMAZON_ORIGIN, timeout=30000, wait_until="domcontentloaded"
+                )
+                await set_amazon_postcode(_pc_page, DELIVERY_POSTCODE)
+            except Exception as e:
+                print(f"   Postcode setup failed (non-fatal): {e}")
+            finally:
+                try:
+                    await _pc_page.close()
+                except Exception:
+                    pass
+
         file_exists = Path(OUTPUT_FILE).exists()
         mode = "a" if file_exists else "w"
 
-        with open(OUTPUT_FILE, mode, newline="\n", encoding="utf-8") as f:
+        with open(OUTPUT_FILE, mode, newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             if not file_exists:
                 writer.writerow([
@@ -728,7 +814,8 @@ async def run_scraper(keywords: list[str], min_price: str = None, max_price: str
                             file=sys.stderr,
                         )
                         break
-                    raise
+                    print(f"\n Error on keyword '{kw}': {e}", file=sys.stderr)
+                    print("   Continuing to next keyword...\n")
 
         await context.close()
 
