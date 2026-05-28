@@ -757,7 +757,7 @@ async def switch_helium10_account(context):
             await page.wait_for_timeout(1500)
             
         # 3. Click the requested account
-        account_btn = page.locator(f"text='{HELIUM_SUB_ACCOUNT}'").first
+        account_btn = page.get_by_text(HELIUM_SUB_ACCOUNT, exact=False).first
         if await account_btn.count() > 0:
             await account_btn.click(force=True)
             print(f"   [Extension] Successfully switched to account: {HELIUM_SUB_ACCOUNT}")
@@ -980,18 +980,20 @@ async def run_scraper(keywords: list[str], min_price: str = None, max_price: str
             return OUTPUT_FILE
 
         skip_prime = False
+        login_ok = False
         if HELIUM_EMAIL and HELIUM_PASSWORD:
-            await auto_login_helium10(context)
+            login_ok = await auto_login_helium10(context)
             skip_prime = True
         elif HELIUM_LOGIN_FIRST or HELIUM_LOGIN_ONLY:
             await helium10_login_window(context)
+            login_ok = True
             skip_prime = True
             if HELIUM_LOGIN_ONLY:
                 await context.close()
                 print(" Helium login window finished.\n")
                 return OUTPUT_FILE
 
-        if HELIUM_SUB_ACCOUNT:
+        if HELIUM_SUB_ACCOUNT and login_ok:
             await switch_helium10_account(context)
 
         if not skip_prime:
