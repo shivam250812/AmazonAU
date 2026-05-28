@@ -58,12 +58,6 @@ AUTO_CLEAN_HELIUM10 = os.getenv("AUTO_CLEAN_HELIUM10", "0") == "1"
 HELIUM_LOGIN_FIRST = os.getenv("HELIUM_LOGIN_FIRST", "0") == "1"
 HELIUM_LOGIN_ONLY = os.getenv("HELIUM_LOGIN_ONLY", "0") == "1"
 
-# Automated Login Config
-HELIUM_EMAIL = os.getenv("HELIUM_EMAIL", "")
-HELIUM_PASSWORD = os.getenv("HELIUM_PASSWORD", "")
-PROTON_PASSWORD = os.getenv("PROTON_PASSWORD", "")
-HELIUM_SUB_ACCOUNT = os.getenv("HELIUM_SUB_ACCOUNT", "")
-
 
 # ─── Utility Functions ────────────────────────────────────────────────────────
 
@@ -640,218 +634,6 @@ async def process_keyword(context, keyword, writer, out_fp, min_price=None, max_
                 print(f"      Product scrape error (skipped): {r}")
 
 
-# ─── Automated Helium 10 / ProtonMail Login ────────────────────────────────────
-
-async def proton_mail_verify(context):
-    print("   [ProtonMail] Opening new tab to mail.proton.me to verify login...")
-    page = await context.new_page()
-    try:
-        await page.goto("https://mail.proton.me/login", timeout=45000)
-        
-        # Check if we need to log in or if we are already logged in
-        needs_login = False
-        try:
-            await page.wait_for_selector("input#username", timeout=10000)
-            needs_login = True
-        except:
-            pass
-            
-        if needs_login:
-            print("   [ProtonMail] Entering credentials...")
-            await page.fill("input#username", HELIUM_EMAIL)
-            await page.fill("input#password", PROTON_PASSWORD)
-            await page.click("button[type='submit']")
-            
-        print("   [ProtonMail] Waiting for inbox to decrypt and load (this can take up to 20s)...")
-        await page.wait_for_selector("div[data-testid='message-column:message-row']", timeout=30000)
-        
-        print("   [ProtonMail] Inbox loaded. Looking for newest Helium 10 email...")
-        # Search for Helium 10 Verification Email
-        emails = page.locator("div[data-testid='message-column:message-row']")
-        
-        for i in range(min(5, await emails.count())):
-            email = emails.nth(i)
-            text = await email.inner_text()
-            if "Helium 10" in text and "Verify" in text:
-                print("   [ProtonMail] Found verification email! Opening...")
-                await email.click()
-                break
-        
-        print("   [ProtonMail] Waiting for email body to load...")
-        # Try to find the Accept button link
-        await page.wait_for_timeout(3000) # Give decrypt time
-        accept_button = page.locator("a", has_text="Verify")
-        
-        if await accept_button.count() > 0:
-            link = await accept_button.first.get_attribute("href")
-            print(f"   [ProtonMail] Found verification link! Clicking it in background: {link[:30]}...")
-            verify_page = await context.new_page()
-            await verify_page.goto(link, timeout=30000)
-            await verify_page.wait_for_timeout(5000)
-            await verify_page.close()
-            print("   [ProtonMail] Successfully verified via ProtonMail.")
-            return True
-        else:
-            print("   [ProtonMail] Could not find the 'Verify' button inside the email.")
-            return False
-            
-    except Exception as e:
-        print(f"   [ProtonMail] Error during automated verification: {e}")
-        return False
-    finally:
-        await page.close()
-
-
-async def switch_helium10_account(context):
-    """
-    Finds the Helium 10 extension and switches the sub-account via its popup URL.
-    """
-    if not HELIUM_SUB_ACCOUNT:
-        return
-        
-    print(f"\n   [Extension] Attempting to switch account to '{HELIUM_SUB_ACCOUNT}'...")
-    
-    # 1. Find the Extension ID from background pages / service workers
-    ext_id = None
-    for bg_page in context.background_pages:
-        if bg_page.url.startswith("chrome-extension://"):
-            ext_id = bg_page.url.split("/")[2]
-            break
-            
-    if not ext_id:
-        for worker in context.service_workers:
-            if worker.url.startswith("chrome-extension://"):
-                ext_id = worker.url.split("/")[2]
-                break
-                
-    # Fallback to standard Chrome Web Store ID if not found dynamically
-    if not ext_id:
-        ext_id = "pbnndmlepmbofbgobkpmdbjggiegompj"
-        print(f"   [Extension] Could not find dynamic ID. Using default: {ext_id}")
-    else:
-        print(f"   [Extension] Found Extension ID: {ext_id}")
-
-    page = await context.new_page()
-    try:
-        # Try popup.html first, then index.html
-        ext_url = f"chrome-extension://{ext_id}/popup.html"
-        resp = await page.goto(ext_url, timeout=15000)
-        
-        # If the page loads a 404 or fails, we can try index.html
-        body_text = await page.inner_text("body")
-        if "404" in body_text or "not found" in body_text.lower():
-            ext_url = f"chrome-extension://{ext_id}/index.html"
-            await page.goto(ext_url, timeout=15000)
-
-        await page.wait_for_load_state("networkidle", timeout=10000)
-        
-        # Wait for the extension UI to render (usually has some buttons)
-        await page.wait_for_timeout(3000)
-
-        # 2. Open the account dropdown
-        # The dropdown chevron is usually an SVG near the bottom. We click the last SVG on the page.
-        svgs = await page.locator("svg").all()
-        if len(svgs) > 0:
-            print("   [Extension] Opening account dropdown...")
-            await svgs[-1].click(force=True)
-            await page.wait_for_timeout(1500)
-            
-        # 3. Click the requested account
-        account_btn = page.get_by_text(HELIUM_SUB_ACCOUNT, exact=False).first
-        if await account_btn.count() > 0:
-            await account_btn.click(force=True)
-            print(f"   [Extension] Successfully switched to account: {HELIUM_SUB_ACCOUNT}")
-            # Wait for it to save the setting
-            await page.wait_for_timeout(2000)
-        else:
-            print(f"   [Extension] Warning: Could not find '{HELIUM_SUB_ACCOUNT}' in the dropdown.")
-            
-    except Exception as e:
-        print(f"   [Extension] Error switching account: {e}")
-    finally:
-        await page.close()
-
-
-async def auto_login_helium10(context):
-    """
-    Automatically log into Helium 10 before scraping starts.
-    If it hits the email verification wall, it calls proton_mail_verify().
-    """
-    print("\n   [Auto-Login] Checking Helium 10 Session...")
-    page = await context.new_page()
-    try:
-        await page.goto("https://members.helium10.com/user/signin", timeout=60000)
-        
-        # Check if already logged in (redirected to dashboard)
-        await page.wait_for_timeout(3000)
-        if "dashboard" in page.url.lower():
-            print("   [Auto-Login] Already logged in. Session is active.")
-            return True
-            
-        print("   [Auto-Login] Session expired. Attempting automated login...")
-        
-        # Wait for form using a robust placeholder selector
-        email_input = page.locator("input[placeholder*='email' i], input[type='email']").first
-        await email_input.wait_for(state="visible", timeout=15000)
-        
-        # Fill credentials
-        await email_input.fill(HELIUM_EMAIL)
-        await page.locator("input[placeholder*='password' i], input[type='password']").first.fill(HELIUM_PASSWORD)
-        
-        # Important: Check 'Remember Me' if it exists to extend session
-        try:
-            checkbox = page.locator("input[type='checkbox']")
-            if await checkbox.count() > 0:
-                await checkbox.first.check()
-        except:
-            pass
-            
-        login_btn = page.locator("button:has-text('LOG IN'), button[type='submit']").first
-        await login_btn.click()
-        
-        # Wait to see what happens next (Dashboard, Captcha, or Email Verification)
-        await page.wait_for_timeout(5000)
-        
-        if "dashboard" in page.url.lower():
-            print("   [Auto-Login] Login successful!")
-            return True
-            
-        # Check for Email Verification Screen
-        body_text = await page.inner_text("body")
-        if "check your email" in body_text.lower() or "verify" in body_text.lower():
-            print("   [Auto-Login] Helium 10 requested email verification!")
-            if PROTON_PASSWORD:
-                verified = await proton_mail_verify(context)
-                if verified:
-                    # Give the main tab a second to refresh after verification
-                    await page.wait_for_timeout(3000)
-                    print("   [Auto-Login] Resuming after ProtonMail verification.")
-                    return True
-            else:
-                print("   [Auto-Login] PROTON_PASSWORD not provided in .env. Cannot auto-verify.")
-                
-        # If we got here, it's either a CAPTCHA or invalid credentials
-        print("   [Auto-Login] Automated login stopped. You may need to solve a CAPTCHA manually.")
-        print("   [Auto-Login] Look at the open Chrome window right now and solve any puzzles.")
-        
-        # Wait for user to manually fix it
-        max_sec = 180
-        for _ in range(max_sec // 5):
-            if "dashboard" in page.url.lower():
-                print("   [Auto-Login] Manual solve successful! Proceeding...")
-                return True
-            await page.wait_for_timeout(5000)
-            
-        print("   [Auto-Login] Timed out waiting for manual solve.")
-        return False
-        
-    except Exception as e:
-        print(f"   [Auto-Login] Error during automated login: {e}")
-        return False
-    finally:
-        await page.close()
-
-
 # ─── Helium 10 Login & Warmup ─────────────────────────────────────────────────
 
 async def helium10_login_window(context):
@@ -980,21 +762,13 @@ async def run_scraper(keywords: list[str], min_price: str = None, max_price: str
             return OUTPUT_FILE
 
         skip_prime = False
-        login_ok = False
-        if HELIUM_EMAIL and HELIUM_PASSWORD:
-            login_ok = await auto_login_helium10(context)
-            skip_prime = True
-        elif HELIUM_LOGIN_FIRST or HELIUM_LOGIN_ONLY:
+        if HELIUM_LOGIN_FIRST or HELIUM_LOGIN_ONLY:
             await helium10_login_window(context)
-            login_ok = True
             skip_prime = True
             if HELIUM_LOGIN_ONLY:
                 await context.close()
                 print(" Helium login window finished.\n")
                 return OUTPUT_FILE
-
-        if HELIUM_SUB_ACCOUNT and login_ok:
-            await switch_helium10_account(context)
 
         if not skip_prime:
             await prime_helium10_on_pdp(context)
