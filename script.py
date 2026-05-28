@@ -719,14 +719,15 @@ async def auto_login_helium10(context):
             
         print("   [Auto-Login] Session expired. Attempting automated login...")
         
-        # Wait for form
-        await page.wait_for_selector("input[type='email']", timeout=10000)
+        # Wait for form using a robust placeholder selector
+        email_input = page.locator("input[placeholder*='email' i], input[type='email']").first
+        await email_input.wait_for(state="visible", timeout=15000)
         
         # Fill credentials
-        await page.fill("input[type='email']", HELIUM_EMAIL)
-        await page.fill("input[type='password']", HELIUM_PASSWORD)
+        await email_input.fill(HELIUM_EMAIL)
+        await page.locator("input[placeholder*='password' i], input[type='password']").first.fill(HELIUM_PASSWORD)
         
-        # Important: Check 'Keep me logged in' if it exists to extend session
+        # Important: Check 'Remember Me' if it exists to extend session
         try:
             checkbox = page.locator("input[type='checkbox']")
             if await checkbox.count() > 0:
@@ -734,7 +735,8 @@ async def auto_login_helium10(context):
         except:
             pass
             
-        await page.click("button[type='submit']")
+        login_btn = page.locator("button:has-text('LOG IN'), button[type='submit']").first
+        await login_btn.click()
         
         # Wait to see what happens next (Dashboard, Captcha, or Email Verification)
         await page.wait_for_timeout(5000)
