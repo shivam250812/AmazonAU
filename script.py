@@ -62,6 +62,7 @@ HELIUM_LOGIN_ONLY = os.getenv("HELIUM_LOGIN_ONLY", "0") == "1"
 HELIUM_EMAIL = os.getenv("HELIUM_EMAIL", "")
 HELIUM_PASSWORD = os.getenv("HELIUM_PASSWORD", "")
 PROTON_PASSWORD = os.getenv("PROTON_PASSWORD", "")
+HELIUM_SUB_ACCOUNT = os.getenv("HELIUM_SUB_ACCOUNT", "")
 
 
 # ─── Utility Functions ────────────────────────────────────────────────────────
@@ -701,6 +702,76 @@ async def proton_mail_verify(context):
         await page.close()
 
 
+async def switch_helium10_account(context):
+    """
+    Finds the Helium 10 extension and switches the sub-account via its popup URL.
+    """
+    if not HELIUM_SUB_ACCOUNT:
+        return
+        
+    print(f"\n   [Extension] Attempting to switch account to '{HELIUM_SUB_ACCOUNT}'...")
+    
+    # 1. Find the Extension ID from background pages / service workers
+    ext_id = None
+    for bg_page in context.background_pages:
+        if bg_page.url.startswith("chrome-extension://"):
+            ext_id = bg_page.url.split("/")[2]
+            break
+            
+    if not ext_id:
+        for worker in context.service_workers:
+            if worker.url.startswith("chrome-extension://"):
+                ext_id = worker.url.split("/")[2]
+                break
+                
+    # Fallback to standard Chrome Web Store ID if not found dynamically
+    if not ext_id:
+        ext_id = "pbnndmlepmbofbgobkpmdbjggiegompj"
+        print(f"   [Extension] Could not find dynamic ID. Using default: {ext_id}")
+    else:
+        print(f"   [Extension] Found Extension ID: {ext_id}")
+
+    page = await context.new_page()
+    try:
+        # Try popup.html first, then index.html
+        ext_url = f"chrome-extension://{ext_id}/popup.html"
+        resp = await page.goto(ext_url, timeout=15000)
+        
+        # If the page loads a 404 or fails, we can try index.html
+        body_text = await page.inner_text("body")
+        if "404" in body_text or "not found" in body_text.lower():
+            ext_url = f"chrome-extension://{ext_id}/index.html"
+            await page.goto(ext_url, timeout=15000)
+
+        await page.wait_for_load_state("networkidle", timeout=10000)
+        
+        # Wait for the extension UI to render (usually has some buttons)
+        await page.wait_for_timeout(3000)
+
+        # 2. Open the account dropdown
+        # The dropdown chevron is usually an SVG near the bottom. We click the last SVG on the page.
+        svgs = await page.locator("svg").all()
+        if len(svgs) > 0:
+            print("   [Extension] Opening account dropdown...")
+            await svgs[-1].click(force=True)
+            await page.wait_for_timeout(1500)
+            
+        # 3. Click the requested account
+        account_btn = page.locator(f"text='{HELIUM_SUB_ACCOUNT}'").first
+        if await account_btn.count() > 0:
+            await account_btn.click(force=True)
+            print(f"   [Extension] Successfully switched to account: {HELIUM_SUB_ACCOUNT}")
+            # Wait for it to save the setting
+            await page.wait_for_timeout(2000)
+        else:
+            print(f"   [Extension] Warning: Could not find '{HELIUM_SUB_ACCOUNT}' in the dropdown.")
+            
+    except Exception as e:
+        print(f"   [Extension] Error switching account: {e}")
+    finally:
+        await page.close()
+
+
 async def auto_login_helium10(context):
     """
     Automatically log into Helium 10 before scraping starts.
@@ -919,6 +990,9 @@ async def run_scraper(keywords: list[str], min_price: str = None, max_price: str
                 await context.close()
                 print(" Helium login window finished.\n")
                 return OUTPUT_FILE
+
+        if HELIUM_SUB_ACCOUNT:
+            await switch_helium10_account(context)
 
         if not skip_prime:
             await prime_helium10_on_pdp(context)
