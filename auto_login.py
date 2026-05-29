@@ -78,6 +78,13 @@ async def amazon_auto_login(context):
     page = await context.new_page()
     
     try:
+        from notifications import send_email_notification
+    except ImportError:
+        def send_email_notification(subject, message): pass
+    
+    login_action_taken = False
+    
+    try:
         print("1. Navigating to Seller Central...")
         await page.goto("https://sellercentral.amazon.in", timeout=60000)
         await page.wait_for_timeout(4000)
@@ -88,6 +95,12 @@ async def amazon_auto_login(context):
             
             # 1. Are we on the Merchant Selection screen?
             if await handle_merchant_selection(page):
+                if not login_action_taken:
+                    login_action_taken = True
+                    send_email_notification(
+                        subject="Amazon Scraper: Auto-Login Triggered",
+                        message="Seller Central requires action (Merchant selection). The script is handling it automatically..."
+                    )
                 continue
                 
             # 2. Are we on the Dashboard?
@@ -96,7 +109,22 @@ async def amazon_auto_login(context):
             if await select_btn.count() == 0 or not await select_btn.is_visible():
                 if "dashboard" in current_url or await page.locator("text='Home'").count() > 0 or await page.get_by_text("Shudhit", exact=False).count() > 0:
                     print("=> Reached Amazon Seller Central Dashboard! 'Shudhit | United States' is visible. You are fully logged in.")
+                    
+                    if login_action_taken:
+                        send_email_notification(
+                            subject="Amazon Scraper: Auto-Login Successful",
+                            message="The script has successfully auto-logged into Amazon Seller Central and is now continuing the scrape!"
+                        )
                     return True
+                
+            # If we reached here, it means we are NOT on the dashboard. 
+            # If this is the first step, we are definitely logged out.
+            if not login_action_taken:
+                login_action_taken = True
+                send_email_notification(
+                    subject="Amazon Scraper: Seller Central Login Required",
+                    message="Seller Central session expired. The script is now running the auto-login sequence automatically..."
+                )
                 
             # 3. Are we on the OTP screen?
             if await fill_otp(page):
@@ -123,7 +151,7 @@ async def amazon_auto_login(context):
                     await page.wait_for_timeout(2000)
                     continue # Loop around to check for password form
                 
-            # 5. Password Form?
+            # 6. Password Form?
             pass_input = page.locator("input[type='password'], input[name='password']")
             if await pass_input.count() > 0 and await pass_input.first.is_visible():
                 print("-> Filling password...")
@@ -143,10 +171,20 @@ async def amazon_auto_login(context):
             await page.wait_for_timeout(3000)
             
         print("\n❌ Error: Could not verify login after 10 steps. Stuck on unknown page.")
+        if login_action_taken:
+            send_email_notification(
+                subject="Amazon Scraper: Auto-Login Failed",
+                message="The script attempted to auto-login to Amazon Seller Central but got stuck. Please log into your VPS and check the Chrome window."
+            )
         return False
 
     except Exception as e:
         print(f"\n❌ Error during Amazon auto-login: {e}")
+        if login_action_taken:
+            send_email_notification(
+                subject="Amazon Scraper: Auto-Login Failed",
+                message=f"The auto-login script encountered an error: {e}"
+            )
         try:
             await page.wait_for_timeout(30000)
         except Exception:

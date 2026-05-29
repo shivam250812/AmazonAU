@@ -48,27 +48,49 @@ async def ensure_logged_in(page):
         "signin" in current_url
         or "ap/signin" in current_url
     ):
-        print(
-            "\n  Seller Central not logged in.\n"
-            "   Please log in manually in the Chrome window.\n"
-            "   Waiting up to 5 minutes for login...\n"
-        )
+        print("\n  Seller Central not logged in. Triggering auto-login script...\n")
+        
         try:
+            from notifications import send_email_notification
             send_email_notification(
                 subject="Amazon Scraper: Seller Central Login Required",
-                message="Seller Central is asking for a login. The script will wait up to 5 minutes for you to log in via the Chrome window."
+                message="Seller Central session expired. The script is now running the auto-login sequence automatically..."
             )
         except Exception:
             pass
-        # Wait up to 5 minutes, checking every 10 seconds
-        for i in range(30):
-            await asyncio.sleep(10)
-            current_url = page.url.lower()
-            if "signin" not in current_url and "ap/signin" not in current_url:
-                break
-        else:
-            print(" Login timeout — Seller Central still on sign-in page.", file=sys.stderr)
+            
+        try:
+            from auto_login import amazon_auto_login
+            success = await amazon_auto_login(page.context)
+            if not success:
+                print(" Auto-login failed. Exiting.", file=sys.stderr)
+                try:
+                    send_email_notification(
+                        subject="Amazon Scraper: Auto-Login Failed",
+                        message="The automatic login attempt failed. Please check the VPS."
+                    )
+                except Exception:
+                    pass
+                sys.exit(1)
+            else:
+                try:
+                    send_email_notification(
+                        subject="Amazon Scraper: Auto-Login Successful",
+                        message="The auto-login sequence completed successfully. The script is continuing."
+                    )
+                except Exception:
+                    pass
+        except ImportError:
+            print(" auto_login.py not found. Exiting.", file=sys.stderr)
             sys.exit(1)
+            
+        # Refresh the page after successful login
+        await page.goto(
+            SELLER_CENTRAL_URL,
+            timeout=90000,
+            wait_until="domcontentloaded",
+        )
+        await asyncio.sleep(5)
 
     print(" Seller Central login active\n")
 
