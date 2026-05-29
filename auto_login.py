@@ -106,9 +106,34 @@ async def amazon_auto_login(context):
         except Exception:
             print("   (No 2FA screen detected, continuing...)")
 
-        print("8. Waiting to confirm successful login...")
-        # Give it a few seconds to load the dashboard
+        print("8. Checking for Merchant/Marketplace selection screen...")
+        # Give it a few seconds to load the next page
         await page.wait_for_timeout(5000)
+        
+        # 9. Select "Shudhit" if present
+        shudhit_btn = page.get_by_text("Shudhit", exact=False).first
+        if await shudhit_btn.count() > 0:
+            print("   => Found 'Shudhit' account. Clicking it...")
+            await shudhit_btn.click()
+            await page.wait_for_timeout(2000)
+            
+            # 10. Select "United States"
+            us_btn = page.get_by_text("United States", exact=False).first
+            if await us_btn.count() > 0:
+                print("   => Found 'United States' marketplace. Clicking it...")
+                await us_btn.click()
+                await page.wait_for_timeout(2000)
+                
+            # 11. Click the final Select/Continue button for marketplace
+            # Usually it says "Select Account" or "Choose"
+            select_btn = page.locator("button:has-text('Select Account'), button:has-text('Select')").first
+            if await select_btn.count() > 0:
+                print("   => Clicking 'Select Account'...")
+                await select_btn.click()
+                await page.wait_for_load_state("networkidle")
+                await page.wait_for_timeout(3000)
+                
+        print("12. Waiting to confirm successful login...")
         
         print("\n✅ Auto-login complete! The session cookies have been saved to your Chrome profile.")
         print("   You can now run your main scraper script.")
