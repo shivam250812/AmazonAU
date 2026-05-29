@@ -528,6 +528,14 @@ async def scrape_product(context, url):
 
 async def process_keyword(context, keyword, writer, out_fp, min_price=None, max_price=None):
     print(f"\n {keyword}")
+    
+    # Verify the Amazon session mid-scrape (takes ~5s if already logged in)
+    try:
+        from auto_login import amazon_auto_login
+        print(" [Auto-Login] Verifying Amazon Seller Central session before keyword scrape...")
+        await amazon_auto_login(context)
+    except ImportError:
+        pass
 
     max_pages = int(os.getenv("SEARCH_PAGES", "20"))
     max_pages = max(1, min(max_pages, 20))
