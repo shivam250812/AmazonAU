@@ -20,6 +20,33 @@ AMAZON_EMAIL = os.getenv("AMAZON_EMAIL", "")
 AMAZON_PASSWORD = os.getenv("AMAZON_PASSWORD", "")
 AMAZON_TOTP_SECRET = os.getenv("AMAZON_TOTP_SECRET", "")
 
+async def handle_merchant_selection(page):
+    """Helper to select Shudhit and United States if the screen appears."""
+    select_btn = page.locator("button:has-text('Select Account'), button:has-text('Select')").first
+    if await select_btn.count() > 0 and await select_btn.is_visible():
+        print("-> On Merchant Picker screen. Selecting Shudhit -> United States...")
+        
+        # 1. Click Shudhit
+        shudhit_btn = page.get_by_text("Shudhit", exact=False).first
+        if await shudhit_btn.count() > 0 and await shudhit_btn.is_visible():
+            await shudhit_btn.click()
+            await page.wait_for_timeout(1500)
+            
+        # 2. Click United States
+        us_btn = page.get_by_text("United States", exact=False).first
+        if await us_btn.count() > 0 and await us_btn.is_visible():
+            await us_btn.click()
+            await page.wait_for_timeout(1500)
+            
+        # 3. Click Select Account
+        print("   => Clicking 'Select Account'...")
+        await select_btn.click()
+        
+        # VERY IMPORTANT: Wait for the navigation to the dashboard to finish!
+        await page.wait_for_timeout(8000)
+        return True
+    return False
+
 async def fill_otp(page):
     """Helper to fill OTP if the screen is present."""
     totp_input = page.locator("input[id='auth-mfa-otpcode']")
@@ -59,24 +86,30 @@ async def amazon_auto_login(context):
         for step in range(10):  # max 10 steps to prevent infinite loop
             current_url = page.url.lower()
             
-            # 1. Are we on the Dashboard?
-            # If the screen shows Shudhit, we consider it successfully logged in as per user request
-            if "dashboard" in current_url or await page.locator("text='Home'").count() > 0 or await page.get_by_text("Shudhit", exact=False).count() > 0:
-                print("=> Reached Amazon Seller Central! 'Shudhit' is visible. You are fully logged in.")
-                return True
+            # 1. Are we on the Merchant Selection screen?
+            if await handle_merchant_selection(page):
+                continue
                 
-            # 2. Are we on the OTP screen?
+            # 2. Are we on the Dashboard?
+            # If the screen shows Shudhit and NO 'Select' button, we are fully logged in
+            select_btn = page.locator("button:has-text('Select Account'), button:has-text('Select')").first
+            if await select_btn.count() == 0 or not await select_btn.is_visible():
+                if "dashboard" in current_url or await page.locator("text='Home'").count() > 0 or await page.get_by_text("Shudhit", exact=False).count() > 0:
+                    print("=> Reached Amazon Seller Central Dashboard! 'Shudhit | United States' is visible. You are fully logged in.")
+                    return True
+                
+            # 3. Are we on the OTP screen?
             if await fill_otp(page):
                 continue
 
-            # 3. Sometimes there's a landing page with a "Log in" button
+            # 4. Sometimes there's a landing page with a "Log in" button
             if await page.locator("a:has-text('Log in')").count() > 0 and await page.locator("a:has-text('Log in')").first.is_visible():
                 print("-> Clicking 'Log in' landing page button...")
                 await page.locator("a:has-text('Log in')").first.click()
                 await page.wait_for_load_state("networkidle")
                 continue
 
-            # 4. Email Form?
+            # 5. Email Form?
             email_input = page.locator("input[type='email'], input[name='email']")
             if await email_input.count() > 0 and await email_input.first.is_visible():
                 print(f"-> Filling email: {AMAZON_EMAIL}")
