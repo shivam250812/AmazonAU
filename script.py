@@ -533,13 +533,20 @@ async def process_keyword(context, keyword, writer, out_fp, min_price=None, max_
     print(f"\n {keyword}")
     
     global LAST_LOGIN_CHECK
-    # Verify the Amazon session mid-scrape only once per hour to avoid 4s overhead per keyword
+    # Verify the Amazon & Helium 10 sessions mid-scrape only once per hour to avoid overhead
     if time.time() - LAST_LOGIN_CHECK > 3600:
+        print("\n [Auto-Login] Periodic 1-hour verification of Amazon Seller Central & Helium 10 sessions...")
+        LAST_LOGIN_CHECK = time.time()
+        
         try:
             from auto_login import amazon_auto_login
-            print("\n [Auto-Login] Periodic 1-hour verification of Amazon Seller Central session...")
             await amazon_auto_login(context)
-            LAST_LOGIN_CHECK = time.time()
+        except ImportError:
+            pass
+            
+        try:
+            from helium_login import helium_auto_login
+            await helium_auto_login(context)
         except ImportError:
             pass
 
@@ -810,6 +817,7 @@ async def run_scraper(keywords: list[str], min_price: str = None, max_price: str
             except Exception as e:
                 print(f"   Postcode setup failed (non-fatal): {e}")
             finally:
+                pass
                 try:
                     await _pc_page.close()
                 except Exception:
