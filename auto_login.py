@@ -20,34 +20,6 @@ AMAZON_EMAIL = os.getenv("AMAZON_EMAIL", "")
 AMAZON_PASSWORD = os.getenv("AMAZON_PASSWORD", "")
 AMAZON_TOTP_SECRET = os.getenv("AMAZON_TOTP_SECRET", "")
 
-async def handle_merchant_selection(page):
-    """Helper to select Shudhit and United States if the screen appears."""
-    print("-> Checking for Merchant/Marketplace selection screen...")
-    
-    # 9. Select "Shudhit" if present
-    shudhit_btn = page.get_by_text("Shudhit", exact=False).first
-    if await shudhit_btn.count() > 0:
-        print("   => Found 'Shudhit' account. Clicking it...")
-        await shudhit_btn.click()
-        await page.wait_for_timeout(2000)
-        
-        # 10. Select "United States"
-        us_btn = page.get_by_text("United States", exact=False).first
-        if await us_btn.count() > 0:
-            print("   => Found 'United States' marketplace. Clicking it...")
-            await us_btn.click()
-            await page.wait_for_timeout(2000)
-            
-        # 11. Click the final Select/Continue button for marketplace
-        select_btn = page.locator("button:has-text('Select Account'), button:has-text('Select')").first
-        if await select_btn.count() > 0:
-            print("   => Clicking 'Select Account'...")
-            await select_btn.click()
-            await page.wait_for_load_state("networkidle")
-            await page.wait_for_timeout(3000)
-            return True
-    return False
-
 async def fill_otp(page):
     """Helper to fill OTP if the screen is present."""
     totp_input = page.locator("input[id='auth-mfa-otpcode']")
@@ -88,27 +60,23 @@ async def amazon_auto_login(context):
             current_url = page.url.lower()
             
             # 1. Are we on the Dashboard?
-            if "dashboard" in current_url or await page.locator("text='Home'").count() > 0:
-                print("=> Reached Amazon Seller Central Dashboard! You are fully logged in.")
+            # If the screen shows Shudhit, we consider it successfully logged in as per user request
+            if "dashboard" in current_url or await page.locator("text='Home'").count() > 0 or await page.get_by_text("Shudhit", exact=False).count() > 0:
+                print("=> Reached Amazon Seller Central! 'Shudhit' is visible. You are fully logged in.")
                 return True
                 
-            # 2. Are we on Merchant Selection?
-            if await handle_merchant_selection(page):
-                # We clicked the merchant, loop around to see what's next
-                continue
-                
-            # 3. Are we on the OTP screen?
+            # 2. Are we on the OTP screen?
             if await fill_otp(page):
                 continue
 
-            # 4. Sometimes there's a landing page with a "Log in" button
+            # 3. Sometimes there's a landing page with a "Log in" button
             if await page.locator("a:has-text('Log in')").count() > 0 and await page.locator("a:has-text('Log in')").first.is_visible():
                 print("-> Clicking 'Log in' landing page button...")
                 await page.locator("a:has-text('Log in')").first.click()
                 await page.wait_for_load_state("networkidle")
                 continue
 
-            # 5. Email Form?
+            # 4. Email Form?
             email_input = page.locator("input[type='email'], input[name='email']")
             if await email_input.count() > 0 and await email_input.first.is_visible():
                 print(f"-> Filling email: {AMAZON_EMAIL}")
@@ -122,7 +90,7 @@ async def amazon_auto_login(context):
                     await page.wait_for_timeout(2000)
                     continue # Loop around to check for password form
                 
-            # 6. Password Form?
+            # 5. Password Form?
             pass_input = page.locator("input[type='password'], input[name='password']")
             if await pass_input.count() > 0 and await pass_input.first.is_visible():
                 print("-> Filling password...")
@@ -141,7 +109,7 @@ async def amazon_auto_login(context):
             # If we get here and none of the above matched, we might just need to wait a bit
             await page.wait_for_timeout(3000)
             
-        print("\n❌ Error: Could not reach the dashboard after 10 steps. Stuck on unknown page.")
+        print("\n❌ Error: Could not verify login after 10 steps. Stuck on unknown page.")
         return False
 
     except Exception as e:
