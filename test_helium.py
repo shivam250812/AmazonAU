@@ -16,7 +16,7 @@ async def main():
         print("\nChecking Helium 10 login status first...")
         await helium_auto_login(context)
         
-        test_url = "https://www.amazon.com/dp/B08LVBV9KX"
+        test_url = "https://www.amazon.com.au/dp/B08LVBV9KX"
         print(f"\nLoading {test_url} ...")
         await page.goto(test_url, timeout=60000, wait_until="domcontentloaded")
         

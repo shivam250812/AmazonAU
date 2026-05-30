@@ -48,7 +48,7 @@ python run_pipeline.py --setup
 This will launch a blank Chrome window. You have ~5 minutes to:
 1. Navigate to the **Chrome Web Store** and install the **Helium 10** extension.
 2. Click the Helium 10 puzzle icon and **Log in**.
-3. Go to **sellercentral.amazon.com** and **Log in**.
+3. Go to **sellercentral.amazon.com.au** and **Log in**.
 4. Allow the browser to close automatically when the timer expires. Your session is now saved in the `chrome-data/` folder.
 
 > **Note:** Do NOT delete the `chrome-data/` folder, or you will have to repeat this setup process.

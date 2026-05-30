@@ -48,7 +48,7 @@ if sys.platform == "win32":
 # ─── Config ────────────────────────────────────────────────────────────────────
 
 DEFAULT_KEYWORDS = ["copper water dispenser", "standing desk"]
-BASE_URL = "https://www.amazon.com/s?k="
+BASE_URL = "https://www.amazon.com.au/s?k="
 _OUTPUT_DIR = Path(__file__).resolve().parent
 OUTPUT_FILE = str(_OUTPUT_DIR / "output.csv")
 
@@ -93,13 +93,19 @@ async def abort_media(route):
 
 # ─── Delivery Postcode ────────────────────────────────────────────────────────
 
-DELIVERY_POSTCODE = os.getenv("DELIVERY_POSTCODE", "10001")
+DELIVERY_POSTCODE = os.getenv("DELIVERY_POSTCODE", "2000")
 
 
 async def set_amazon_postcode(page, zipcode=None):
     """Set a consistent delivery postcode so prices/availability are stable."""
     zipcode = zipcode or DELIVERY_POSTCODE
     try:
+        # Handle bot check "Continue shopping" button if it appears
+        bot_btn = page.locator("button:has-text('Continue shopping'), input[value='Continue shopping']").first
+        if await bot_btn.count():
+            await bot_btn.click()
+            await page.wait_for_timeout(3000)
+            
         deliver_btn = page.locator(
             "#glow-ingress-block, #nav-global-location-popover-link"
         ).first
@@ -108,23 +114,37 @@ async def set_amazon_postcode(page, zipcode=None):
         await deliver_btn.click()
         await page.wait_for_timeout(2000)
 
-        zip_input = page.locator("#GLUXZipUpdateInput").first
+        zip_input = page.locator("#GLUXZipUpdateInput, #GLUXPostalCodeWithCity_PostalCodeInput").first
         if not await zip_input.count():
             return False
         await zip_input.fill("")
         await zip_input.type(zipcode, delay=50)
+        await page.wait_for_timeout(1000) # Wait for city dropdown to populate in AU
 
+        # If the specific Australian city dropdown exists, select the first actual city (e.g., SYDNEY)
+        city_dropdown = page.locator("#GLUXPostalCodeWithCity_DropdownList").first
+        if await city_dropdown.count() and await city_dropdown.is_visible():
+            try:
+                # After typing postcode, it might take a moment to fetch cities
+                await page.wait_for_timeout(2000)
+                # Select the second option (index 1) since index 0 is "Select your City"
+                await city_dropdown.select_option(index=1)
+                await page.wait_for_timeout(1000)
+            except Exception as e:
+                print(f"   Could not select city from dropdown: {e}")
+
+        # The Apply button in Australia might not be in #GLUXZipUpdate
         apply_btn = page.locator(
-            "#GLUXZipUpdate input[type='submit'], #GLUXZipUpdate .a-button-input"
+            "#GLUXZipUpdate input[type='submit'], #GLUXZipUpdate .a-button-input, #GLUXPostalCodeWithCityApplyButton input, button:has-text('Apply'), input[aria-labelledby='GLUXZipUpdate-announce']"
         ).first
         if await apply_btn.count():
             await apply_btn.click()
             await page.wait_for_timeout(2000)
 
-        # Close the confirmation popup if present
+        # Close the confirmation popup if present (Continue or Done)
         try:
             done_btn = page.locator(
-                "button[name='glowDoneButton'], #GLUXConfirmClose"
+                "button[name='glowDoneButton'], #GLUXConfirmClose, button:has-text('Continue'), button:has-text('Done')"
             ).first
             if await done_btn.count():
                 await done_btn.click()
@@ -661,7 +681,7 @@ async def helium10_login_window(context):
     """
     Open a real PDP and wait so you can log in to Helium 10 (extensions menu).
     """
-    url = os.getenv("HELIUM_WARMUP_DP", "https://www.amazon.com/dp/B08LVBV9KX")
+    url = os.getenv("HELIUM_WARMUP_DP", "https://www.amazon.com.au/dp/B08LVBV9KX")
     page = await context.new_page()
     try:
         await page.goto(url, timeout=90_000, wait_until="domcontentloaded")
@@ -709,7 +729,7 @@ async def prime_helium10_on_pdp(context):
         return
 
     max_sec = int(os.getenv("HELIUM_LOGIN_MAX_WAIT_SEC", "900"))
-    url = os.getenv("HELIUM_WARMUP_DP", "https://www.amazon.com/dp/B08LVBV9KX")
+    url = os.getenv("HELIUM_WARMUP_DP", "https://www.amazon.com.au/dp/B08LVBV9KX")
     page = await context.new_page()
     try:
         print(f"\n Loading a product page so Helium 10 can run: {url}")
@@ -778,7 +798,14 @@ async def run_scraper(keywords: list[str], min_price: str = None, max_price: str
             await amazon_auto_login(context)
             LAST_LOGIN_CHECK = time.time()
         except ImportError:
-            print("\n [Auto-Login] auto_login.py not found. Skipping auto-login.")
+            print("\n [Auto-Login] auto_login.py not found. Skipping Amazon auto-login.")
+
+        try:
+            from helium_login import helium_auto_login
+            print("\n [Auto-Login] Verifying Helium 10 session...")
+            await helium_auto_login(context)
+        except ImportError:
+            print("\n [Auto-Login] helium_login.py not found. Skipping Helium 10 auto-login.")
 
         if SETUP_ONLY:
             page = await context.new_page()

@@ -25,7 +25,7 @@ DEFAULT_INPUT_CSV = "input.csv"
 DEFAULT_OUTPUT_CSV = "gated_output.csv"
 
 SELLER_CENTRAL_URL = (
-    "https://sellercentral.amazon.com/product-search/keywords"
+    "https://sellercentral.amazon.com.au/product-search?ref_=myp_ps"
 )
 
 # =========================================================
@@ -80,8 +80,8 @@ async def ensure_logged_in(page):
                     )
                 except Exception:
                     pass
-        except ImportError:
-            print(" auto_login.py not found. Exiting.", file=sys.stderr)
+        except ImportError as e:
+            print(f" ImportError while loading auto_login.py: {e}", file=sys.stderr)
             sys.exit(1)
             
         # Refresh the page after successful login

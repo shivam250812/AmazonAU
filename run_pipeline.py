@@ -253,8 +253,8 @@ def main():
     )
     parser.add_argument(
         "--marketplace",
-        default="amazon.in",
-        help="Target marketplace (default: amazon.in)",
+        default="amazon.com.au",
+        help="Target marketplace (default: amazon.com.au)",
     )
     parser.add_argument(
         "--count",

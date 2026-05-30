@@ -21,10 +21,10 @@ AMAZON_PASSWORD = os.getenv("AMAZON_PASSWORD", "")
 AMAZON_TOTP_SECRET = os.getenv("AMAZON_TOTP_SECRET", "")
 
 async def handle_merchant_selection(page):
-    """Helper to select Shudhit and United States if the screen appears."""
+    """Helper to select Shudhit and Australia if the screen appears."""
     select_btn = page.locator("button:has-text('Select Account'), button:has-text('Select')").first
     if await select_btn.count() > 0 and await select_btn.is_visible():
-        print("-> On Merchant Picker screen. Selecting Shudhit -> United States...")
+        print("-> On Merchant Picker screen. Selecting Shudhit -> Australia...")
         
         # 1. Click Shudhit
         shudhit_btn = page.get_by_text("Shudhit", exact=False).first
@@ -32,8 +32,8 @@ async def handle_merchant_selection(page):
             await shudhit_btn.click()
             await page.wait_for_timeout(1500)
             
-        # 2. Click United States
-        us_btn = page.get_by_text("United States", exact=False).first
+        # 2. Click Australia
+        us_btn = page.get_by_text("Australia", exact=False).first
         if await us_btn.count() > 0 and await us_btn.is_visible():
             await us_btn.click()
             await page.wait_for_timeout(1500)
@@ -86,7 +86,7 @@ async def amazon_auto_login(context):
     
     try:
         print("1. Navigating to Seller Central...")
-        await page.goto("https://sellercentral.amazon.in", timeout=60000)
+        await page.goto("https://sellercentral.amazon.com.au", timeout=60000)
         await page.wait_for_timeout(4000)
         
         # State machine loop: check what screen we are on and handle it
@@ -108,7 +108,7 @@ async def amazon_auto_login(context):
             select_btn = page.locator("button:has-text('Select Account'), button:has-text('Select')").first
             if await select_btn.count() == 0 or not await select_btn.is_visible():
                 if "dashboard" in current_url or await page.locator("text='Home'").count() > 0 or await page.get_by_text("Shudhit", exact=False).count() > 0:
-                    print("=> Reached Amazon Seller Central Dashboard! 'Shudhit | United States' is visible. You are fully logged in.")
+                    print("=> Reached Amazon Seller Central Dashboard! 'Shudhit | Australia' is visible. You are fully logged in.")
                     
                     if login_action_taken:
                         send_email_notification(

@@ -2,6 +2,9 @@ import os
 import asyncio
 from playwright.async_api import async_playwright
 import sys
+from dotenv import load_dotenv
+
+load_dotenv()
 
 HELIUM_EMAIL = os.getenv("HELIUM_EMAIL", "")
 HELIUM_PASSWORD = os.getenv("HELIUM_PASSWORD", "")
@@ -53,17 +56,18 @@ async def helium_auto_login(context):
             
             # Fill Email
             print(f"-> Filling email: {HELIUM_EMAIL}")
-            email_input = page.get_by_placeholder("Please enter your email").first
+            email_input = page.locator("#loginform-email")
+            await email_input.wait_for(state="visible", timeout=30000)
             await email_input.fill(HELIUM_EMAIL)
             
             # Fill Password
             print("-> Filling password...")
-            pass_input = page.get_by_placeholder("Please enter your password").first
+            pass_input = page.locator("#loginform-password")
             await pass_input.fill(HELIUM_PASSWORD)
             
             # Submit
             print("-> Submitting login...")
-            await page.locator("button:has-text('LOG IN')").first.click()
+            await page.locator("button[type='submit']").click()
             
             # Wait for dashboard to load
             print("-> Waiting for login to complete...")
