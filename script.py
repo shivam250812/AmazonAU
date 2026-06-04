@@ -48,7 +48,11 @@ if sys.platform == "win32":
 # ─── Config ────────────────────────────────────────────────────────────────────
 
 DEFAULT_KEYWORDS = ["copper water dispenser", "standing desk"]
-BASE_URL = os.environ.get("AMAZON_URL", "https://www.amazon.com.au/s?k=")
+BASE_URL = os.environ.get("AMAZON_URL", "https://www.amazon.com.au/s?k=").strip()
+if not BASE_URL.endswith("=") and "s?k" not in BASE_URL:
+    if not BASE_URL.endswith("/"):
+        BASE_URL += "/"
+    BASE_URL += "s?k="
 _OUTPUT_DIR = Path(__file__).resolve().parent
 OUTPUT_FILE = str(_OUTPUT_DIR / "output.csv")
 
