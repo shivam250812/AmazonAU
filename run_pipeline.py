@@ -315,9 +315,10 @@ def main():
     # New dynamic URL arguments
     parser.add_argument("--amazon-url", type=str, default="https://www.amazon.com.au/s?k=", help="Base search URL for Amazon")
     parser.add_argument("--seller-login-url", type=str, default="https://sellercentral.amazon.com.au", help="Base login URL for Seller Central")
-    parser.add_argument("--seller-url", type=str, default="https://sellercentral.amazon.com.au/product-search?ref_=myp_ps", help="Base search URL for Seller Central")
+    parser.add_argument("--seller-url", type=str, default="https://sellercentral.amazon.com.au/product-search?ref_=myp_ps", help="Seller Central Search base URL")
     parser.add_argument("--merchant-name", type=str, default="Shudhit", help="Merchant Name to select in Seller Central login")
     parser.add_argument("--merchant-country", type=str, default="Australia", help="Merchant Country to select in Seller Central login")
+    parser.add_argument("--postcode", type=str, default="2000", help="Delivery Postcode to set on Amazon")
     
     args = parser.parse_args()
 
@@ -341,6 +342,7 @@ def main():
         env["SELLER_CENTRAL_URL"] = args.seller_url
         env["MERCHANT_NAME"] = args.merchant_name
         env["MERCHANT_COUNTRY"] = args.merchant_country
+        env["DELIVERY_POSTCODE"] = args.postcode
         
         subprocess.run(
             [_PYTHON, str(_DIR / "script.py")],
@@ -388,6 +390,7 @@ def main():
             os.environ["SELLER_CENTRAL_URL"] = args.seller_url
             os.environ["MERCHANT_NAME"] = args.merchant_name
             os.environ["MERCHANT_COUNTRY"] = args.merchant_country
+            os.environ["DELIVERY_POSTCODE"] = args.postcode
             
             scrape_ok = step_scrape_amazon([kw], args.test, args.min_price, args.max_price, args.pages)
             if not scrape_ok:

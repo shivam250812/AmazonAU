@@ -44,6 +44,7 @@ def run_setup():
 
     data = request.json or {}
     amazon_url = data.get('amazon_url', '').strip()
+    delivery_postcode = data.get('delivery_postcode', '').strip()
     seller_login_url = data.get('seller_login_url', '').strip()
     seller_url = data.get('seller_url', '').strip()
     merchant_name = data.get('merchant_name', '').strip()
@@ -52,6 +53,8 @@ def run_setup():
     cmd = [sys.executable, "run_pipeline.py", "--setup"]
     if amazon_url:
         cmd.extend(["--amazon-url", amazon_url])
+    if delivery_postcode:
+        cmd.extend(["--postcode", delivery_postcode])
     if seller_login_url:
         cmd.extend(["--seller-login-url", seller_login_url])
     if seller_url:
@@ -83,6 +86,7 @@ def start_pipeline():
 
     data = request.json or {}
     amazon_url = data.get('amazon_url', '').strip()
+    delivery_postcode = data.get('delivery_postcode', '').strip()
     topic = data.get('topic', '').strip()
     keywords = data.get('keywords', '').strip()
     min_price = data.get('min_price', '').strip()
@@ -96,6 +100,8 @@ def start_pipeline():
     cmd = [sys.executable, "run_pipeline.py"]
     if amazon_url:
         cmd.extend(["--amazon-url", amazon_url])
+    if delivery_postcode:
+        cmd.extend(["--postcode", delivery_postcode])
     if topic:
         cmd.extend(["--topic", topic])
     if keywords:
