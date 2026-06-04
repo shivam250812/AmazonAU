@@ -16,24 +16,34 @@ except ImportError:
     print("Error: chrome_profile.py not found. Please run this script from the project root.")
     sys.exit(1)
 
-AMAZON_EMAIL = os.getenv("AMAZON_EMAIL", "")
-AMAZON_PASSWORD = os.getenv("AMAZON_PASSWORD", "")
-AMAZON_TOTP_SECRET = os.getenv("AMAZON_TOTP_SECRET", "")
+MERCHANT_NAME = os.getenv("MERCHANT_NAME", "Shudhit")
+MERCHANT_COUNTRY = os.getenv("MERCHANT_COUNTRY", "Australia")
+SELLER_CENTRAL_URL = os.getenv("SELLER_CENTRAL_URL", "https://sellercentral.amazon.com.au/product-search?ref_=myp_ps")
+
+# Dynamically pick the account based on the Merchant Name from the UI
+if "bargad" in MERCHANT_NAME.lower():
+    AMAZON_EMAIL = os.getenv("AMAZON_EMAIL_2", "")
+    AMAZON_PASSWORD = os.getenv("AMAZON_PASSWORD_2", "")
+    AMAZON_TOTP_SECRET = os.getenv("AMAZON_TOTP_SECRET_2", "")
+else:
+    AMAZON_EMAIL = os.getenv("AMAZON_EMAIL", "")
+    AMAZON_PASSWORD = os.getenv("AMAZON_PASSWORD", "")
+    AMAZON_TOTP_SECRET = os.getenv("AMAZON_TOTP_SECRET", "")
 
 async def handle_merchant_selection(page):
     """Helper to select Shudhit and Australia if the screen appears."""
     select_btn = page.locator("button:has-text('Select Account'), button:has-text('Select')").first
     if await select_btn.count() > 0 and await select_btn.is_visible():
-        print("-> On Merchant Picker screen. Selecting Shudhit -> Australia...")
+        print(f"-> On Merchant Picker screen. Selecting {MERCHANT_NAME} -> {MERCHANT_COUNTRY}...")
         
-        # 1. Click Shudhit
-        shudhit_btn = page.get_by_text("Shudhit", exact=False).first
+        # 1. Click Merchant Name
+        shudhit_btn = page.get_by_text(MERCHANT_NAME, exact=False).first
         if await shudhit_btn.count() > 0 and await shudhit_btn.is_visible():
             await shudhit_btn.click()
             await page.wait_for_timeout(1500)
             
-        # 2. Click Australia
-        us_btn = page.get_by_text("Australia", exact=False).first
+        # 2. Click Country
+        us_btn = page.get_by_text(MERCHANT_COUNTRY, exact=False).first
         if await us_btn.count() > 0 and await us_btn.is_visible():
             await us_btn.click()
             await page.wait_for_timeout(1500)
@@ -84,9 +94,11 @@ async def amazon_auto_login(context):
     
     login_action_taken = False
     
+    SELLER_CENTRAL_LOGIN_URL = os.getenv("SELLER_CENTRAL_LOGIN_URL", "https://sellercentral.amazon.com.au")
+    
     try:
-        print("1. Navigating to Seller Central...")
-        await page.goto("https://sellercentral.amazon.com.au", timeout=60000)
+        print(f"1. Navigating to Seller Central Login ({SELLER_CENTRAL_LOGIN_URL})...")
+        await page.goto(SELLER_CENTRAL_LOGIN_URL, timeout=60000)
         await page.wait_for_timeout(4000)
         
         # State machine loop: check what screen we are on and handle it
@@ -107,8 +119,8 @@ async def amazon_auto_login(context):
             # If the screen shows Shudhit and NO 'Select' button, we are fully logged in
             select_btn = page.locator("button:has-text('Select Account'), button:has-text('Select')").first
             if await select_btn.count() == 0 or not await select_btn.is_visible():
-                if "dashboard" in current_url or await page.locator("text='Home'").count() > 0 or await page.get_by_text("Shudhit", exact=False).count() > 0:
-                    print("=> Reached Amazon Seller Central Dashboard! 'Shudhit | Australia' is visible. You are fully logged in.")
+                if "dashboard" in current_url or await page.locator("text='Home'").count() > 0 or await page.get_by_text(MERCHANT_NAME, exact=False).count() > 0:
+                    print(f"=> Reached Amazon Seller Central Dashboard! '{MERCHANT_NAME} | {MERCHANT_COUNTRY}' is visible. You are fully logged in.")
                     
                     if login_action_taken:
                         send_email_notification(

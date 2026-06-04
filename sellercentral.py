@@ -24,7 +24,8 @@ from notifications import send_email_notification
 DEFAULT_INPUT_CSV = "input.csv"
 DEFAULT_OUTPUT_CSV = "gated_output.csv"
 
-SELLER_CENTRAL_URL = (
+SELLER_CENTRAL_URL = os.environ.get(
+    "SELLER_CENTRAL_URL", 
     "https://sellercentral.amazon.com.au/product-search?ref_=myp_ps"
 )
 

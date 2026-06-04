@@ -134,6 +134,11 @@ def step_scrape_amazon(keywords: list[str], test_mode: bool, min_price: str = No
     else:
         env["SEARCH_PAGES"] = str(pages)
         print(f"   Scraping up to {pages} pages per keyword\n")
+        
+    # Pass dynamic Amazon URL
+    if "AMAZON_URL" not in env:
+        # Default fallback
+        env["AMAZON_URL"] = "https://www.amazon.com.au/s?k="
 
     keywords_str = ",".join(keywords)
     cmd = [
@@ -206,9 +211,14 @@ def step_seller_central():
 
     print(f"  Running: {' '.join(cmd)}\n")
 
+    env = os.environ.copy()
+    # Pass along dynamic variables for Seller Central
+    # Default fallbacks handled in sellercentral.py / auto_login.py if missing from env
+    
     result = subprocess.run(
         cmd,
         cwd=str(_DIR),
+        env=env,
         timeout=None,
     )
 
@@ -301,6 +311,14 @@ def main():
         action="store_true",
         help="Clear old CSV data before starting a new run",
     )
+    
+    # New dynamic URL arguments
+    parser.add_argument("--amazon-url", type=str, default="https://www.amazon.com.au/s?k=", help="Base search URL for Amazon")
+    parser.add_argument("--seller-login-url", type=str, default="https://sellercentral.amazon.com.au", help="Base login URL for Seller Central")
+    parser.add_argument("--seller-url", type=str, default="https://sellercentral.amazon.com.au/product-search?ref_=myp_ps", help="Base search URL for Seller Central")
+    parser.add_argument("--merchant-name", type=str, default="Shudhit", help="Merchant Name to select in Seller Central login")
+    parser.add_argument("--merchant-country", type=str, default="Australia", help="Merchant Country to select in Seller Central login")
+    
     args = parser.parse_args()
 
     start = time.time()
@@ -318,6 +336,12 @@ def main():
         print("\n  Preparing fresh Chrome profile...")
         env = os.environ.copy()
         env["SETUP_ONLY"] = "1"
+        env["AMAZON_URL"] = args.amazon_url
+        env["SELLER_CENTRAL_LOGIN_URL"] = args.seller_login_url
+        env["SELLER_CENTRAL_URL"] = args.seller_url
+        env["MERCHANT_NAME"] = args.merchant_name
+        env["MERCHANT_COUNTRY"] = args.merchant_country
+        
         subprocess.run(
             [_PYTHON, str(_DIR / "script.py")],
             env=env,
@@ -357,6 +381,14 @@ def main():
             print("=" * 50)
 
             # Step 2: Scrape Amazon
+            # Set the env var here so step_scrape_amazon inherits it, or pass it directly.
+            # We already use os.environ in step_scrape_amazon, so we set them globally for the script run
+            os.environ["AMAZON_URL"] = args.amazon_url
+            os.environ["SELLER_CENTRAL_LOGIN_URL"] = args.seller_login_url
+            os.environ["SELLER_CENTRAL_URL"] = args.seller_url
+            os.environ["MERCHANT_NAME"] = args.merchant_name
+            os.environ["MERCHANT_COUNTRY"] = args.merchant_country
+            
             scrape_ok = step_scrape_amazon([kw], args.test, args.min_price, args.max_price, args.pages)
             if not scrape_ok:
                 print(f"   Skipping remaining steps for '{kw}'...")

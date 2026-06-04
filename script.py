@@ -48,7 +48,7 @@ if sys.platform == "win32":
 # ─── Config ────────────────────────────────────────────────────────────────────
 
 DEFAULT_KEYWORDS = ["copper water dispenser", "standing desk"]
-BASE_URL = "https://www.amazon.com.au/s?k="
+BASE_URL = os.environ.get("AMAZON_URL", "https://www.amazon.com.au/s?k=")
 _OUTPUT_DIR = Path(__file__).resolve().parent
 OUTPUT_FILE = str(_OUTPUT_DIR / "output.csv")
 
@@ -471,6 +471,58 @@ async def extract_shipper_and_seller(page):
     return shipper, seller
 
 
+# ─── Brand Extraction ─────────────────────────────────────────────────────────
+
+async def extract_brand(page):
+    """
+    Best-effort extraction of Brand from an Amazon product page.
+    """
+    brand = "N/A"
+    
+    # Method 1: Product Details table (.po-brand)
+    try:
+        for selector in [
+            "tr.po-brand td.a-span9 span.a-size-base",
+            "tr.po-brand td:nth-child(2) span",
+            "#productOverview_feature_div tr.po-brand td.a-span9 span"
+        ]:
+            el = page.locator(selector).first
+            if await el.count():
+                txt = (await el.inner_text()).strip()
+                if txt and txt.lower() != "n/a":
+                    return txt
+    except:
+        pass
+
+    # Method 2: Byline under title (e.g. "Visit the ASUS Store" or "Brand: ASUS")
+    try:
+        for selector in ["#bylineInfo", "#bylineInfo_feature_div a", "a#bylineInfo"]:
+            els = page.locator(selector)
+            count = await els.count()
+            for i in range(count):
+                txt = (await els.nth(i).inner_text()).strip()
+                m = re.search(r"Visit the (.+?) Store", txt, re.IGNORECASE)
+                if m:
+                    return m.group(1).strip()
+                m = re.search(r"Brand:\s+(.+)", txt, re.IGNORECASE)
+                if m:
+                    return m.group(1).strip()
+    except:
+        pass
+
+    # Method 3: alt tag on brand logo
+    try:
+        el = page.locator("img#brandLogoHiResByline, img.premium-logoByLine-brand-logo").first
+        if await el.count():
+            alt = await el.get_attribute("alt")
+            if alt:
+                return alt.strip()
+    except:
+        pass
+
+    return brand
+
+
 # ─── Product Scraper ───────────────────────────────────────────────────────────
 
 async def scrape_product(context, url):
@@ -500,6 +552,7 @@ async def scrape_product(context, url):
     sellers = None
     shipper = "N/A"
     seller = "N/A"
+    brand = "N/A"
 
     try:
         price_text = await page.locator(".a-price .a-offscreen").first.inner_text()
@@ -520,6 +573,10 @@ async def scrape_product(context, url):
     except Exception:
         pass
     try:
+        brand = await extract_brand(page)
+    except Exception:
+        pass
+    try:
         revenue = await extract_helium10_revenue(page)
     except Exception:
         pass
@@ -533,6 +590,7 @@ async def scrape_product(context, url):
 
     return {
         "asin": asin,
+        "brand": brand,
         "price": price,
         "revenue": revenue,
         "rating": rating,
@@ -656,6 +714,7 @@ async def process_keyword(context, keyword, writer, out_fp, min_price=None, max_
                 writer.writerow([
                     keyword,
                     product["asin"],
+                    product["brand"],
                     product["price"],
                     product["revenue"],
                     product["rating"],
@@ -857,7 +916,7 @@ async def run_scraper(keywords: list[str], min_price: str = None, max_price: str
             writer = csv.writer(f)
             if not file_exists:
                 writer.writerow([
-                    "Keyword", "ASIN", "Price", "Revenue", "Rating",
+                    "Keyword", "ASIN", "Brand", "Price", "Revenue", "Rating",
                     "Reviews", "Sellers", "Shipper", "Seller", "URL",
                 ])
                 f.flush()

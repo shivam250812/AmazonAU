@@ -42,7 +42,24 @@ def run_setup():
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
 
+    data = request.json or {}
+    amazon_url = data.get('amazon_url', '').strip()
+    seller_login_url = data.get('seller_login_url', '').strip()
+    seller_url = data.get('seller_url', '').strip()
+    merchant_name = data.get('merchant_name', '').strip()
+    merchant_country = data.get('merchant_country', '').strip()
+
     cmd = [sys.executable, "run_pipeline.py", "--setup"]
+    if amazon_url:
+        cmd.extend(["--amazon-url", amazon_url])
+    if seller_login_url:
+        cmd.extend(["--seller-login-url", seller_login_url])
+    if seller_url:
+        cmd.extend(["--seller-url", seller_url])
+    if merchant_name:
+        cmd.extend(["--merchant-name", merchant_name])
+    if merchant_country:
+        cmd.extend(["--merchant-country", merchant_country])
     current_process = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
@@ -65,13 +82,20 @@ def start_pipeline():
         return jsonify({"error": "A process is already running"}), 400
 
     data = request.json or {}
+    amazon_url = data.get('amazon_url', '').strip()
     topic = data.get('topic', '').strip()
     keywords = data.get('keywords', '').strip()
     min_price = data.get('min_price', '').strip()
     max_price = data.get('max_price', '').strip()
     pages = data.get('pages', '20').strip()
+    seller_login_url = data.get('seller_login_url', '').strip()
+    seller_url = data.get('seller_url', '').strip()
+    merchant_name = data.get('merchant_name', '').strip()
+    merchant_country = data.get('merchant_country', '').strip()
 
     cmd = [sys.executable, "run_pipeline.py"]
+    if amazon_url:
+        cmd.extend(["--amazon-url", amazon_url])
     if topic:
         cmd.extend(["--topic", topic])
     if keywords:
@@ -82,6 +106,14 @@ def start_pipeline():
         cmd.extend(["--max-price", max_price])
     if pages:
         cmd.extend(["--pages", pages])
+    if seller_login_url:
+        cmd.extend(["--seller-login-url", seller_login_url])
+    if seller_url:
+        cmd.extend(["--seller-url", seller_url])
+    if merchant_name:
+        cmd.extend(["--merchant-name", merchant_name])
+    if merchant_country:
+        cmd.extend(["--merchant-country", merchant_country])
 
     # Clear old logs
     while not log_queue.empty():

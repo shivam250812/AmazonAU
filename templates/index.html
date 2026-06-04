@@ -227,6 +227,11 @@
             <p class="subtitle">Configure and run the pipeline</p>
 
             <div class="form-group">
+                <label>Amazon Search URL</label>
+                <input type="text" id="amazon_url" placeholder="https://www.amazon.com.au/s?k=" value="https://www.amazon.com.au/s?k=">
+            </div>
+
+            <div class="form-group">
                 <label>Topic (for AI suggestion)</label>
                 <input type="text" id="topic" placeholder="e.g., copper water bottles">
             </div>
@@ -255,8 +260,31 @@
             <button class="btn-primary" onclick="startPipeline()">Start Pipeline</button>
             
             <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--glass-border);">
-                <label>First time setup?</label>
-                <button class="btn-secondary" onclick="startSetup()">Run Setup (Helium 10 Login)</button>
+                <label style="font-size: 15px; font-weight: 600; color: white;">Seller Central Gating Configuration</label>
+                
+                <div class="form-group" style="margin-top: 12px;">
+                    <label>Seller Central Login URL</label>
+                    <input type="text" id="seller_login_url" placeholder="https://sellercentral.amazon.com.au" value="https://sellercentral.amazon.com.au">
+                </div>
+                
+                <div class="form-group" style="margin-top: 12px;">
+                    <label>Seller Central Search URL</label>
+                    <input type="text" id="seller_url" placeholder="https://sellercentral.amazon.com.au/product-search?ref_=myp_ps" value="https://sellercentral.amazon.com.au/product-search?ref_=myp_ps">
+                </div>
+
+                <div class="row">
+                    <div class="form-group">
+                        <label>Merchant Name</label>
+                        <input type="text" id="merchant_name" placeholder="e.g., Shudhit" value="Shudhit">
+                    </div>
+                    <div class="form-group">
+                        <label>Merchant Country</label>
+                        <input type="text" id="merchant_country" placeholder="e.g., Australia" value="Australia">
+                    </div>
+                </div>
+
+                <label style="margin-top: 12px;">First time setup?</label>
+                <button class="btn-secondary" onclick="startSetup()">Run Setup (Helium 10 & Amazon Login)</button>
             </div>
         </div>
 
@@ -304,12 +332,18 @@
         }
 
         async function startPipeline() {
+            saveInputs();
             const data = {
+                amazon_url: document.getElementById('amazon_url').value,
                 topic: document.getElementById('topic').value,
                 keywords: document.getElementById('keywords').value,
                 min_price: document.getElementById('min_price').value,
                 max_price: document.getElementById('max_price').value,
-                pages: document.getElementById('pages').value
+                pages: document.getElementById('pages').value,
+                seller_login_url: document.getElementById('seller_login_url').value,
+                seller_url: document.getElementById('seller_url').value,
+                merchant_name: document.getElementById('merchant_name').value,
+                merchant_country: document.getElementById('merchant_country').value
             };
 
             try {
@@ -331,9 +365,20 @@
         }
 
         async function startSetup() {
+            saveInputs();
+            const data = {
+                amazon_url: document.getElementById('amazon_url').value,
+                seller_login_url: document.getElementById('seller_login_url').value,
+                seller_url: document.getElementById('seller_url').value,
+                merchant_name: document.getElementById('merchant_name').value,
+                merchant_country: document.getElementById('merchant_country').value
+            };
+
             try {
                 const response = await fetch('/api/setup', {
-                    method: 'POST'
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
                 });
                 
                 if (response.ok) {
@@ -346,6 +391,27 @@
                 alert('Connection error');
             }
         }
+
+        // Save inputs to localStorage
+        const inputIds = ['amazon_url', 'topic', 'keywords', 'min_price', 'max_price', 'pages', 'seller_login_url', 'seller_url', 'merchant_name', 'merchant_country'];
+        
+        function saveInputs() {
+            inputIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) localStorage.setItem(id, el.value);
+            });
+        }
+        
+        // Load inputs from localStorage on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            inputIds.forEach(id => {
+                const saved = localStorage.getItem(id);
+                if (saved !== null) {
+                    const el = document.getElementById(id);
+                    if (el) el.value = saved;
+                }
+            });
+        });
     </script>
 </body>
 </html>
