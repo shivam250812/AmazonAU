@@ -68,6 +68,8 @@ def run_setup():
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         bufsize=1, # Line buffered
         env=env,
         cwd=os.path.dirname(os.path.abspath(__file__))
@@ -138,6 +140,8 @@ def start_pipeline():
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         bufsize=1, # Line buffered
         env=env,
         cwd=os.path.dirname(os.path.abspath(__file__))
