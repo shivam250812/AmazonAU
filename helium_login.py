@@ -157,6 +157,16 @@ async def helium_auto_login(context):
         else:
             print(f"   Could not find any element containing '{HELIUM_SUB_ACCOUNT}'.")
             print("   Available text on page: ", (await page.locator("body").inner_text())[:200].replace('\n', ' '))
+            
+            # Dump the HTML and push it so we can debug exactly what Helium changed!
+            try:
+                html_content = await page.content()
+                with open("popup_debug.html", "w", encoding="utf-8") as f:
+                    f.write(html_content)
+                print("   Pushing popup_debug.html to GitHub for analysis...")
+                os.system("git add popup_debug.html && git commit -m 'Auto-push Helium popup debug HTML' && git push")
+            except Exception as e3:
+                print(f"   Failed to push debug HTML: {e3}")
 
         if login_action_taken:
             print("\n=> Helium 10 auto-login completed successfully!")
