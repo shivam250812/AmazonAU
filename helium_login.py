@@ -8,6 +8,7 @@ load_dotenv()
 
 HELIUM_EMAIL = os.getenv("HELIUM_EMAIL", "")
 HELIUM_PASSWORD = os.getenv("HELIUM_PASSWORD", "")
+HELIUM_SUB_ACCOUNT = os.getenv("HELIUM_SUB_ACCOUNT", "Moin_Khan")
 HELIUM10_EXTENSION_ID = os.getenv("HELIUM10_EXTENSION_ID", "njmehopjdpcckochcggncklnlmikcbnb")
 
 async def helium_auto_login(context):
@@ -103,12 +104,12 @@ async def helium_auto_login(context):
             print("-> Helium 10 is already logged in!")
             
         # Select the second account
-        print("-> Checking account dropdown...")
+        print(f"-> Checking account dropdown for '{HELIUM_SUB_ACCOUNT}'...")
         
         # Find the dropdown trigger (usually has an SVG arrow down at the bottom right)
         # We look for the container that holds the active account name
         body_text = await page.locator("body").inner_text()
-        if "Moin_Khan" in body_text or "Shawal" in body_text:
+        if "Shawal" in body_text or HELIUM_SUB_ACCOUNT in body_text or "Moin_Khan" in body_text:
             print("-> Account selector found. Attempting to click the dropdown button...")
             
             # Click the exact open button based on the HTML dump
@@ -119,14 +120,14 @@ async def helium_auto_login(context):
                 print("   Clicked open button, waiting for menu...")
                 await page.wait_for_timeout(2000)
                 
-                # Now the menu should be open. Click Moin_Khan.
-                moin_khan_btn = page.get_by_text("Moin_Khan", exact=False).last
-                if await moin_khan_btn.count() > 0 and await moin_khan_btn.is_visible():
-                    print("-> Selecting 'Moin_Khan' (Second account)...")
-                    await moin_khan_btn.click()
+                # Now the menu should be open. Click the configured sub-account.
+                sub_account_btn = page.get_by_text(HELIUM_SUB_ACCOUNT, exact=False).last
+                if await sub_account_btn.count() > 0 and await sub_account_btn.is_visible():
+                    print(f"-> Selecting '{HELIUM_SUB_ACCOUNT}'...")
+                    await sub_account_btn.click()
                     await page.wait_for_timeout(2000)
                 else:
-                    print("   Could not find 'Moin_Khan' in the dropdown menu.")
+                    print(f"   Could not find '{HELIUM_SUB_ACCOUNT}' in the dropdown menu.")
             else:
                 print("   Could not find the dropdown open button to click.")
         else:
