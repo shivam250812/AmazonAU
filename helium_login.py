@@ -173,7 +173,7 @@ async def helium_auto_login(context):
                 with open("popup_debug.html", "w", encoding="utf-8") as f:
                     f.write(html_content)
                 print("   Pushing popup_debug.html to GitHub for analysis...")
-                os.system("git add popup_debug.html && git commit -m 'Auto-push Helium popup debug HTML' && git push")
+                os.system('git add popup_debug.html && git commit -m "Auto-push Helium popup debug HTML" && git push')
             except Exception as e3:
                 print(f"   Failed to push debug HTML: {e3}")
 
