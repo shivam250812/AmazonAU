@@ -16,6 +16,11 @@ Usage:
 """
 
 import argparse
+import random
+import glob
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
 import asyncio
 import json
 import re
@@ -741,7 +746,8 @@ async def helium10_login_window(context):
     """
     Open a real PDP and wait so you can log in to Helium 10 (extensions menu).
     """
-    url = os.getenv("HELIUM_WARMUP_DP", "https://www.amazon.com.au/dp/B08LVBV9KX")
+    # Use the origin of the current scraping region so we don't cross domains
+    url = os.getenv("HELIUM_WARMUP_DP", f"{AMAZON_ORIGIN}/dp/B08LVBV9KX")
     page = await context.new_page()
     try:
         await page.goto(url, timeout=90_000, wait_until="domcontentloaded")
@@ -789,7 +795,7 @@ async def prime_helium10_on_pdp(context):
         return
 
     max_sec = int(os.getenv("HELIUM_LOGIN_MAX_WAIT_SEC", "900"))
-    url = os.getenv("HELIUM_WARMUP_DP", "https://www.amazon.com.au/dp/B08LVBV9KX")
+    url = os.getenv("HELIUM_WARMUP_DP", f"{AMAZON_ORIGIN}/dp/B08LVBV9KX")
     page = await context.new_page()
     try:
         print(f"\n Loading a product page so Helium 10 can run: {url}")
