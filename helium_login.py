@@ -106,32 +106,56 @@ async def helium_auto_login(context):
         # Select the second account
         print(f"-> Checking account dropdown for '{HELIUM_SUB_ACCOUNT}'...")
         
-        # Find the dropdown trigger (usually has an SVG arrow down at the bottom right)
-        # We look for the container that holds the active account name
+        # Check if the sub-account is ALREADY selected!
         body_text = await page.locator("body").inner_text()
-        if "Shawal" in body_text or HELIUM_SUB_ACCOUNT in body_text or "Moin_Khan" in body_text:
-            print("-> Account selector found. Attempting to click the dropdown button...")
-            
-            # Click the exact open button based on the HTML dump
-            open_btn = page.locator("[data-testid='open-button']")
-            
-            if await open_btn.count() > 0:
-                await open_btn.first.click()
-                print("   Clicked open button, waiting for menu...")
-                await page.wait_for_timeout(2000)
-                
-                # Now the menu should be open. Click the configured sub-account.
-                sub_account_btn = page.get_by_text(HELIUM_SUB_ACCOUNT, exact=False).last
-                if await sub_account_btn.count() > 0 and await sub_account_btn.is_visible():
-                    print(f"-> Selecting '{HELIUM_SUB_ACCOUNT}'...")
-                    await sub_account_btn.click()
+        
+        # The currently selected account is usually at the top or visible before clicking.
+        # Let's force open the dropdown by trying multiple possible triggers
+        triggers = [
+            page.locator("[data-testid='open-button']").first,
+            page.locator("svg.lucide-chevron-down").first, # Common chevron icon
+            page.locator("div.cursor-pointer").first # Generic clickable div
+        ]
+        
+        opened = False
+        for trigger in triggers:
+            if await trigger.count() > 0 and await trigger.is_visible():
+                print("   Found a dropdown trigger. Attempting to click...")
+                try:
+                    await trigger.click(force=True)
+                    opened = True
                     await page.wait_for_timeout(2000)
-                else:
-                    print(f"   Could not find '{HELIUM_SUB_ACCOUNT}' in the dropdown menu.")
-            else:
-                print("   Could not find the dropdown open button to click.")
+                    break
+                except Exception:
+                    pass
+                    
+        if not opened:
+            print("   Could not find or click the dropdown trigger. The UI might have changed.")
+            # We will still try to find the text anyway, just in case it's already visible!
+            
+        print(f"   Searching for profile '{HELIUM_SUB_ACCOUNT}'...")
+        # Look for any element containing the sub account name
+        sub_account_btn = page.locator(f"//*[contains(text(), '{HELIUM_SUB_ACCOUNT}')]").last
+        
+        if await sub_account_btn.count() > 0:
+            print(f"-> Found '{HELIUM_SUB_ACCOUNT}'! Attempting to click...")
+            try:
+                # Use force=True because dropdown items are often obscured or in weird z-indexes
+                await sub_account_btn.click(force=True)
+                print(f"-> Clicked '{HELIUM_SUB_ACCOUNT}' successfully!")
+                await page.wait_for_timeout(3000)
+            except Exception as e:
+                print(f"   Failed to click profile: {e}")
+                # Fallback: evaluate JS click
+                try:
+                    print("   Trying JavaScript click fallback...")
+                    await sub_account_btn.evaluate("node => node.click()")
+                    await page.wait_for_timeout(3000)
+                except Exception as e2:
+                    print(f"   JS click also failed: {e2}")
         else:
-            print("   Account names not found in popup. Might already be selected or UI changed.")
+            print(f"   Could not find any element containing '{HELIUM_SUB_ACCOUNT}'.")
+            print("   Available text on page: ", (await page.locator("body").inner_text())[:200].replace('\n', ' '))
 
         if login_action_taken:
             print("\n=> Helium 10 auto-login completed successfully!")
