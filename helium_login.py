@@ -106,6 +106,15 @@ async def helium_auto_login(context):
         # Select the second account
         print(f"-> Checking account dropdown for '{HELIUM_SUB_ACCOUNT}'...")
         
+        # Wait for the popup to finish its loading animation and actually render text!
+        print("-> Waiting for Helium 10 popup UI to fully render...")
+        try:
+            # Wait for at least one button or generic text to appear
+            await page.locator("button, a, svg").first.wait_for(state="visible", timeout=20000)
+            await page.wait_for_timeout(2000) # Give it 2 more seconds just to settle
+        except Exception:
+            print("   Warning: UI did not render buttons within 20s. It might be stuck loading.")
+        
         # Check if the sub-account is ALREADY selected!
         body_text = await page.locator("body").inner_text()
         
