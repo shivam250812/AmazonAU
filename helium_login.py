@@ -109,12 +109,13 @@ async def helium_auto_login(context):
         # Check if the sub-account is ALREADY selected!
         body_text = await page.locator("body").inner_text()
         
-        # The currently selected account is usually at the top or visible before clicking.
+        # The currently selected account is usually at the bottom next to a downward arrow button.
         # Let's force open the dropdown by trying multiple possible triggers
         triggers = [
             page.locator("[data-testid='open-button']").first,
-            page.locator("svg.lucide-chevron-down").first, # Common chevron icon
-            page.locator("div.cursor-pointer").first # Generic clickable div
+            page.locator("button:has(svg)").last, # The button with the arrow icon is likely the last button on the page
+            page.locator("svg.lucide-chevron-down").last,
+            page.locator("button").last # Fallback to clicking the absolute last button on the screen
         ]
         
         opened = False
