@@ -874,9 +874,14 @@ async def run_scraper(keywords: list[str], min_price: str = None, max_price: str
             print("1) Go to the Chrome Web Store and install the Helium 10 extension.")
             print("2) Log into Helium 10 and Amazon Seller Central.")
             print("3) You have ~5 minutes to complete this before the browser closes automatically.\n")
-            await page.wait_for_timeout(300_000)
-            await context.close()
-            print(" Setup complete. Re-run without SETUP_ONLY=1 to scrape.")
+            print("   (Feel free to close the browser yourself when you are done!)")
+            try:
+                await page.wait_for_timeout(300_000)
+                await context.close()
+            except Exception:
+                pass # User manually closed the browser, which is totally fine in setup mode!
+            
+            print("\n Setup complete. You can now run the pipeline.")
             return OUTPUT_FILE
 
         skip_prime = False
