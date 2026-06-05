@@ -30,6 +30,13 @@ def get_amazon_codes():
     else:
         print("\n[Account 2]")
         print("Please add your second secret to .env (AMAZON_TOTP_SECRET_2)")
+
+    # Helium 10
+    helium_secret = os.getenv("HELIUM_TOTP_SECRET")
+    if helium_secret and helium_secret != "YOUR_HELIUM_SECRET_HERE":
+        totp = pyotp.TOTP(helium_secret)
+        print(f"\n[Helium 10]")
+        print(f"Code:  {totp.now()}")
         
     print("\n" + "="*40 + "\n")
 

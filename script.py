@@ -534,76 +534,73 @@ async def scrape_product(context, url):
     page.set_default_timeout(3000)
 
     try:
-        await page.route("**/*", abort_media)
-        await page.goto(url, timeout=30000)
-        await page.wait_for_load_state("domcontentloaded", timeout=30000)
-        # Smart wait for the buybox to attach
         try:
-            await page.wait_for_selector("#buybox, #merchant-info, .tabular-buybox-text", state="attached", timeout=5000)
+            await page.route("**/*", abort_media)
+            await page.goto(url, timeout=30000)
+            await page.wait_for_load_state("domcontentloaded", timeout=30000)
+            # Smart wait for the buybox to attach
+            try:
+                await page.wait_for_selector("#buybox, #merchant-info, .tabular-buybox-text", state="attached", timeout=5000)
+            except Exception:
+                pass
+        except Exception:
+            return None
+
+        price = None
+        revenue = None
+        rating = None
+        reviews = None
+        sellers = None
+        shipper = "N/A"
+        seller = "N/A"
+        brand = "N/A"
+
+        try:
+            price_text = await page.locator(".a-price .a-offscreen").first.inner_text()
+            price = clean_price(price_text)
         except Exception:
             pass
-    except Exception:
+
+        try:
+            rating, reviews = await extract_rating_and_reviews(page)
+        except Exception:
+            pass
+        try:
+            sellers = await extract_seller_count(page)
+        except Exception:
+            pass
+        try:
+            shipper, seller = await extract_shipper_and_seller(page)
+        except Exception:
+            pass
+        try:
+            brand = await extract_brand(page)
+        except Exception:
+            pass
+        try:
+            revenue = await extract_helium10_revenue(page)
+        except Exception:
+            pass
+
+        asin = extract_asin(url)
+
+        return {
+            "asin": asin,
+            "brand": brand,
+            "price": price,
+            "revenue": revenue,
+            "rating": rating,
+            "reviews": reviews,
+            "sellers": sellers,
+            "shipper": shipper,
+            "seller": seller,
+            "url": url,
+        }
+    finally:
         try:
             await page.close()
         except Exception:
             pass
-        return None
-
-    price = None
-    revenue = None
-    rating = None
-    reviews = None
-    sellers = None
-    shipper = "N/A"
-    seller = "N/A"
-    brand = "N/A"
-
-    try:
-        price_text = await page.locator(".a-price .a-offscreen").first.inner_text()
-        price = clean_price(price_text)
-    except Exception:
-        pass
-
-    try:
-        rating, reviews = await extract_rating_and_reviews(page)
-    except Exception:
-        pass
-    try:
-        sellers = await extract_seller_count(page)
-    except Exception:
-        pass
-    try:
-        shipper, seller = await extract_shipper_and_seller(page)
-    except Exception:
-        pass
-    try:
-        brand = await extract_brand(page)
-    except Exception:
-        pass
-    try:
-        revenue = await extract_helium10_revenue(page)
-    except Exception:
-        pass
-
-    asin = extract_asin(url)
-
-    try:
-        await page.close()
-    except Exception:
-        pass
-
-    return {
-        "asin": asin,
-        "brand": brand,
-        "price": price,
-        "revenue": revenue,
-        "rating": rating,
-        "reviews": reviews,
-        "sellers": sellers,
-        "shipper": shipper,
-        "seller": seller,
-        "url": url,
-    }
 
 
 # ─── Keyword Processing ───────────────────────────────────────────────────────
