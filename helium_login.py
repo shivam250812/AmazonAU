@@ -4,7 +4,7 @@ from playwright.async_api import async_playwright
 import sys
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 HELIUM_EMAIL = os.getenv("HELIUM_EMAIL", "")
 HELIUM_PASSWORD = os.getenv("HELIUM_PASSWORD", "")
@@ -73,23 +73,7 @@ async def helium_auto_login(context):
             # Wait for network and check for 2FA prompt
             await page.wait_for_load_state("networkidle")
             await page.wait_for_timeout(3000)
-            
-            otp_input = page.locator("input[name*='otp' i], input[name*='code' i], input[id*='otp' i], input[id*='code' i], input[placeholder*='code' i]").first
-            if await otp_input.count() > 0 and await otp_input.is_visible():
-                print("   => Helium 10 2FA requested. Generating TOTP code...")
-                HELIUM_TOTP_SECRET = os.getenv("HELIUM_TOTP_SECRET", "")
-                if not HELIUM_TOTP_SECRET:
-                    print("      ERROR: HELIUM_TOTP_SECRET is missing from .env!")
-                else:
-                    import pyotp
-                    totp = pyotp.TOTP(HELIUM_TOTP_SECRET)
-                    current_otp = totp.now()
-                    print(f"      => Generated OTP: {current_otp}")
-                    await otp_input.fill(current_otp)
-                    
-                    submit_otp = page.locator("button[type='submit'], button:has-text('Verify'), button:has-text('Submit')").first
-                    if await submit_otp.count() > 0 and await submit_otp.is_visible():
-                        await submit_otp.click()
+
             
             # Wait for dashboard to load
             print("-> Waiting for login to complete...")
