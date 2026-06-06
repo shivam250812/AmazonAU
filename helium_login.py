@@ -150,8 +150,7 @@ async def helium_auto_login(context):
         else:
             print(f"   Could not find any element containing '{HELIUM_SUB_ACCOUNT}'.")
             print("   Available text on page: ", (await page.locator("body").inner_text())[:200].replace('\n', ' '))
-            
-
+            raise Exception(f"Failed to find or select sub-account: {HELIUM_SUB_ACCOUNT}")
 
         if login_action_taken:
             print("\n=> Helium 10 auto-login completed successfully!")
@@ -173,14 +172,13 @@ async def helium_auto_login(context):
         except Exception:
             pass
         
-        if login_action_taken:
-            try:
-                send_email_notification(
-                    subject="Amazon Scraper: Helium 10 Auto-Login Failed",
-                    message=f"The Helium 10 auto-login script encountered an error: {e}"
-                )
-            except Exception:
-                pass
+        try:
+            send_email_notification(
+                subject="Amazon Scraper: Helium 10 Auto-Login Failed",
+                message=f"The Helium 10 auto-login script encountered an error: {e}"
+            )
+        except Exception:
+            pass
         return False
     finally:
         try:
