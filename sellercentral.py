@@ -122,8 +122,14 @@ async def check_asin(page, asin):
         # FIND SEARCH BOX
         # -------------------------------------------------
 
+        # Use multiple fallback locators since Amazon changes the placeholder text per country
         search_box = page.locator(
-            "input[placeholder*='product title']"
+            "input[placeholder*='product title' i], "
+            "input[placeholder*='UPC' i], "
+            "kat-input[placeholder*='product' i], "
+            "kat-input[placeholder*='UPC' i], "
+            "kat-search input, "
+            "input[type='search']"
         ).first
 
         await search_box.wait_for(
