@@ -684,7 +684,30 @@ def _get_asins(args) -> list[str]:
 
     if args.asins_file:
         asins = []
-        with open(args.asins_file, "r", encoding="utf-8") as f:
+        file_path = args.asins_file
+        
+        if file_path.lower().endswith('.csv'):
+            import csv
+            with open(file_path, "r", encoding="utf-8-sig") as f:
+                reader = csv.DictReader(f)
+                
+                # Find the exact name of the ASIN column (case-insensitive)
+                if reader.fieldnames:
+                    asin_key = None
+                    for key in reader.fieldnames:
+                        if key and key.strip().upper() == "ASIN":
+                            asin_key = key
+                            break
+                            
+                    if asin_key:
+                        for row in reader:
+                            val = row.get(asin_key)
+                            if val and val.strip():
+                                asins.append(val.strip())
+                        return asins
+                        
+        # Fallback if it's not a standard CSV or has no ASIN header
+        with open(file_path, "r", encoding="utf-8") as f:
             for line in f:
                 parts = line.strip().split(",")
                 for p in parts:
