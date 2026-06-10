@@ -59,7 +59,7 @@ if not BASE_URL.endswith("=") and "s?k" not in BASE_URL:
         BASE_URL += "/"
     BASE_URL += "s?k="
 _OUTPUT_DIR = Path(__file__).resolve().parent
-OUTPUT_FILE = str(_OUTPUT_DIR / "output.csv")
+OUTPUT_FILE = str(_OUTPUT_DIR / "amazon_only_output.csv")
 
 AMAZON_ORIGIN = f"{urlparse(BASE_URL).scheme}://{urlparse(BASE_URL).netloc}"
 SETUP_ONLY = os.getenv("SETUP_ONLY", "0") == "1"
