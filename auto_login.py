@@ -7,7 +7,7 @@ import pyotp
 import sys
 
 # Load env before importing local modules
-load_dotenv()
+load_dotenv(override=True)
 
 # Import the shared chrome profile launcher
 try:
@@ -119,7 +119,19 @@ async def amazon_auto_login(context):
             # If the screen shows Shudhit and NO 'Select' button, we are fully logged in
             select_btn = page.locator("button:has-text('Select Account'), button:has-text('Select')").first
             if await select_btn.count() == 0 or not await select_btn.is_visible():
-                if "dashboard" in current_url or await page.locator("text='Home'").count() > 0 or await page.get_by_text(MERCHANT_NAME, exact=False).count() > 0:
+                is_dashboard = False
+                if "dashboard" in current_url or "/home" in current_url:
+                    is_dashboard = True
+                else:
+                    # Safely check if 'Home' or 'Merchant' is actually VISIBLE on the page
+                    home_loc = page.locator("text='Home'").first
+                    if await home_loc.count() > 0 and await home_loc.is_visible():
+                        is_dashboard = True
+                    merchant_loc = page.get_by_text(MERCHANT_NAME, exact=False).first
+                    if await merchant_loc.count() > 0 and await merchant_loc.is_visible():
+                        is_dashboard = True
+
+                if is_dashboard:
                     print(f"=> Reached Amazon Seller Central Dashboard! '{MERCHANT_NAME} | {MERCHANT_COUNTRY}' is visible. You are fully logged in.")
                     
                     if login_action_taken:
@@ -166,6 +178,10 @@ async def amazon_auto_login(context):
             # 6. Password Form?
             pass_input = page.locator("input[type='password'], input[name='password']")
             if await pass_input.count() > 0 and await pass_input.first.is_visible():
+                if not AMAZON_PASSWORD:
+                    print("\n❌ CRITICAL: AMAZON_PASSWORD is empty or missing from .env!")
+                    return False
+                    
                 print("-> Filling password...")
                 await pass_input.first.fill(AMAZON_PASSWORD)
                 

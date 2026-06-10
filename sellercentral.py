@@ -10,6 +10,8 @@ from pathlib import Path
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+from dotenv import load_dotenv
+load_dotenv(override=True)
 
 from playwright.async_api import async_playwright
 
@@ -366,6 +368,23 @@ async def run_seller_central(
                     page,
                     asin
                 )
+
+                # If we encounter an error, it might be because the session expired mid-scrape!
+                if result.get("status") == "ERROR":
+                    print(f"\n [!] Error detected for {asin}. Verifying if Seller Central session expired...")
+                    
+                    try:
+                        # This will navigate to Seller Central and trigger auto-login if needed
+                        await ensure_logged_in(page)
+                        
+                        print(f" [!] Retrying {asin} after login verification...")
+                        # Retry the ASIN once
+                        result = await check_asin(
+                            page,
+                            asin
+                        )
+                    except Exception as e:
+                        print(f" [!] Recovery attempt failed: {e}")
 
                 writer.writerow([
                     result["asin"],
