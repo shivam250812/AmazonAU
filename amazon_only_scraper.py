@@ -30,6 +30,11 @@ import sys
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
+from dotenv import load_dotenv
+
+# Load variables from .env file so the user doesn't have to use PowerShell $env: every time
+load_dotenv(override=True)
+
 from playwright.async_api import async_playwright
 
 # Shared Chrome profile setup
