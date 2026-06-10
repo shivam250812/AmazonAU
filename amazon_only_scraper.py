@@ -525,89 +525,19 @@ async def scrape_product(context, url):
 import time
 LAST_LOGIN_CHECK = 0
 
-async def process_keyword(context, keyword, writer, out_fp, min_price=None, max_price=None):
-    print(f"\n {keyword}")
-    
+async def process_asins(context, asins, writer, out_fp):
     global LAST_LOGIN_CHECK
-    # Verify the Amazon session mid-scrape only once per hour to avoid overhead
     if time.time() - LAST_LOGIN_CHECK > 3600:
         print("\n [Auto-Login] Periodic 1-hour verification of Amazon Seller Central session...")
         LAST_LOGIN_CHECK = time.time()
-        
         try:
             from auto_login import amazon_auto_login
             await amazon_auto_login(context)
         except ImportError:
             pass
 
-    max_pages = int(os.getenv("SEARCH_PAGES", "20"))
-    max_pages = max(1, min(max_pages, 20))
+    urls = [f"{AMAZON_ORIGIN}/dp/{asin}" for asin in asins]
 
-    urls_set = set()
-    for page_num in range(1, max_pages + 1):
-        before_count = len(urls_set)
-        page = await context.new_page()
-        try:
-            q = keyword.replace(" ", "+")
-            search_url = f"{BASE_URL}{q}"
-            
-            # Apply price filters if provided
-            if min_price or max_price:
-                joiner = "&" if "?" in search_url else "?"
-                search_url = f"{search_url}{joiner}low-price={min_price or ''}&high-price={max_price or ''}"
-
-            # Always sort by Best Sellers (popularity rank)
-            joiner = "&" if "?" in search_url else "?"
-            search_url = f"{search_url}{joiner}s=exact-aware-popularity-rank"
-
-            if page_num > 1:
-                joiner = "&" if "?" in search_url else "?"
-                search_url = f"{search_url}{joiner}page={page_num}"
-
-            print(f"   • search page {page_num}/{max_pages}")
-            await page.route("**/*", abort_media)
-            await page.goto(search_url, timeout=60000)
-            await page.wait_for_load_state("domcontentloaded", timeout=60000)
-            try:
-                await page.wait_for_selector("a.a-link-normal.s-no-outline", state="attached", timeout=5000)
-            except Exception:
-                pass
-
-            try:
-                body_txt = (await page.locator("body").inner_text()) or ""
-                if "did not match any products" in body_txt.lower():
-                    break
-            except Exception:
-                pass
-
-            try:
-                hrefs = await page.locator("a.a-link-normal.s-no-outline").evaluate_all(
-                    "elements => elements.map(e => e.getAttribute('href'))"
-                )
-                for href in hrefs:
-                    if href and "/dp/" in href:
-                        urls_set.add(urljoin(AMAZON_ORIGIN, href.split("?")[0]))
-            except Exception as e:
-                print(f"        Error extracting links on page {page_num}: {e}")
-
-            if len(urls_set) == before_count:
-                break
-
-            try:
-                next_enabled = await page.locator("a.s-pagination-next").count()
-                if next_enabled == 0:
-                    break
-            except Exception:
-                pass
-        finally:
-            try:
-                await page.close()
-            except Exception:
-                pass
-
-    urls = list(urls_set)
-
-    # Increased to 4 based on user preference (i5 CPU, 6GB RAM)
     semaphore = asyncio.Semaphore(4)
     write_lock = asyncio.Lock()
 
@@ -624,7 +554,6 @@ async def process_keyword(context, keyword, writer, out_fp, min_price=None, max_
 
             async with write_lock:
                 writer.writerow([
-                    keyword,
                     product["asin"],
                     product["brand"],
                     product["price"],
@@ -647,9 +576,9 @@ async def process_keyword(context, keyword, writer, out_fp, min_price=None, max_
 
 # ─── Public API (for run_pipeline.py) ──────────────────────────────────────────
 
-async def run_scraper(keywords: list[str], min_price: str = None, max_price: str = None) -> str:
+async def run_scraper(asins: list[str]) -> str:
     """
-    Run the full scraping pipeline for the given keywords.
+    Run the full scraping pipeline for the given ASINs.
     Returns the path to the output CSV file.
     """
     async with async_playwright() as p:
@@ -705,25 +634,23 @@ async def run_scraper(keywords: list[str], min_price: str = None, max_price: str
             writer = csv.writer(f)
             if not file_exists:
                 writer.writerow([
-                    "Keyword", "ASIN", "Brand", "Price", "Rating",
+                    "ASIN", "Brand", "Price", "Rating",
                     "Reviews", "Sellers", "Shipper", "Seller", "URL",
                 ])
                 f.flush()
 
             print(f"\n Writing rows to: {OUTPUT_FILE}\n")
 
-            for kw in keywords:
-                try:
-                    await process_keyword(context, kw, writer, f, min_price, max_price)
-                except Exception as e:
-                    if type(e).__name__ == "TargetClosedError":
-                        print(
-                            "\n Browser was closed before scraping finished.",
-                            file=sys.stderr,
-                        )
-                        break
-                    print(f"\n Error on keyword '{kw}': {e}", file=sys.stderr)
-                    print("   Continuing to next keyword...\n")
+            try:
+                await process_asins(context, asins, writer, f)
+            except Exception as e:
+                if type(e).__name__ == "TargetClosedError":
+                    print(
+                        "\n Browser was closed before scraping finished.",
+                        file=sys.stderr,
+                    )
+                else:
+                    print(f"\n Error scraping ASINs: {e}", file=sys.stderr)
 
         await context.close()
 
@@ -735,54 +662,44 @@ async def run_scraper(keywords: list[str], min_price: str = None, max_price: str
 
 def _parse_args():
     """Parse CLI arguments."""
-    parser = argparse.ArgumentParser(description="Amazon product scraper")
+    parser = argparse.ArgumentParser(description="Amazon ASIN scraper")
     parser.add_argument(
-        "--keywords",
+        "--asins",
         type=str,
         default=None,
-        help="Comma-separated list of keywords to search",
+        help="Comma-separated list of ASINs to search",
     )
     parser.add_argument(
-        "--keywords-file",
+        "--asins-file",
         type=str,
         default=None,
-        help="Path to JSON file with suggestions (output of suggest_amazon_categories.py)",
-    )
-    parser.add_argument(
-        "--min-price",
-        type=str,
-        default=None,
-        help="Minimum price filter",
-    )
-    parser.add_argument(
-        "--max-price",
-        type=str,
-        default=None,
-        help="Maximum price filter",
+        help="Path to CSV or TXT file with ASINs",
     )
     args = parser.parse_args()
     return args
 
-def _get_keywords(args) -> list[str]:
-    if args.keywords:
-        return [kw.strip() for kw in args.keywords.split(",") if kw.strip()]
+def _get_asins(args) -> list[str]:
+    if args.asins:
+        return [kw.strip() for kw in args.asins.split(",") if kw.strip()]
 
-    if args.keywords_file:
-        with open(args.keywords_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        suggestions = data.get("suggestions", [])
-        return [s["phrase"] for s in suggestions if "phrase" in s]
+    if args.asins_file:
+        asins = []
+        with open(args.asins_file, "r", encoding="utf-8") as f:
+            for line in f:
+                parts = line.strip().split(",")
+                for p in parts:
+                    if p.strip() and p.strip().upper() != "ASIN":
+                        asins.append(p.strip())
+        return asins
 
-    return DEFAULT_KEYWORDS
+    return ["B08LVBV9KX"]
 
 
 async def main():
     args = _parse_args()
-    keywords = _get_keywords(args)
-    print(f" Keywords: {keywords}\n")
-    if args.min_price or args.max_price:
-        print(f" Price Filter: ${args.min_price or '0'} - ${args.max_price or 'Any'}\n")
-    await run_scraper(keywords, args.min_price, args.max_price)
+    asins = _get_asins(args)
+    print(f" ASINs: {asins}\n")
+    await run_scraper(asins)
 
 
 if __name__ == "__main__":
