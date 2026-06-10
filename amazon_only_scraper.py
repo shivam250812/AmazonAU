@@ -538,11 +538,18 @@ async def process_asins(context, asins, writer, out_fp):
 
     urls = [f"{AMAZON_ORIGIN}/dp/{asin}" for asin in asins]
 
-    semaphore = asyncio.Semaphore(4)
+    import random
+    
+    # Reduced from 4 to 3 to be slightly gentler on Amazon's rate limits
+    semaphore = asyncio.Semaphore(3)
     write_lock = asyncio.Lock()
 
     async def bound_scrape(url):
         async with semaphore:
+            # Random delay between 1.5 and 3.5 seconds to mimic human browsing
+            # and avoid getting IP-blocked or CAPTCHA'd by Amazon
+            await asyncio.sleep(random.uniform(1.5, 3.5))
+            
             product = await scrape_product(context, url)
             if not product:
                 return
