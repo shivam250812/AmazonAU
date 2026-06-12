@@ -179,7 +179,7 @@ async def extract_rating_and_reviews(page):
     rating = None
     reviews = None
     try:
-        alt = await page.locator("span.a-icon-alt").first.inner_text()
+        alt = await page.locator("span.a-icon-alt").first.text_content()
         m = re.search(r"(\d+(?:\.\d+)?)\s+out of 5", alt)
         if m:
             rating = float(m.group(1))
@@ -187,7 +187,7 @@ async def extract_rating_and_reviews(page):
         pass
 
     try:
-        txt = await page.locator("#acrCustomerReviewText").first.inner_text()
+        txt = await page.locator("#acrCustomerReviewText").first.text_content()
         m = re.search(r"([\d,]+)", txt)
         if m:
             reviews = int(m.group(1).replace(",", ""))
@@ -207,7 +207,7 @@ async def extract_seller_count(page):
         try:
             el = page.locator(selector).first
             if await el.count():
-                txt = (await el.inner_text()).strip()
+                txt = (await el.text_content()).strip()
                 m = re.search(r"\((\d+)\)", txt)
                 if m:
                     return int(m.group(1))
@@ -218,7 +218,7 @@ async def extract_seller_count(page):
         offers = page.locator("a[href*='offer-listing'], a[href*='offerlisting']")
         count = await offers.count()
         for i in range(min(count, 10)):
-            txt = (await offers.nth(i).inner_text()) or ""
+            txt = (await offers.nth(i).text_content()) or ""
             m = re.search(r"New\s*\(\s*(\d+)\s*\)", txt, flags=re.IGNORECASE)
             if m:
                 return int(m.group(1))
@@ -228,7 +228,7 @@ async def extract_seller_count(page):
     try:
         buybox = page.locator("#buybox, #buyBoxAccordion, #moreBuyingChoices_feature_div")
         if await buybox.count():
-            txt = (await buybox.first.inner_text()) or ""
+            txt = (await buybox.first.text_content()) or ""
             m = re.search(r"(\d+)\s+new", txt, flags=re.IGNORECASE)
             if m:
                 return int(m.group(1))
@@ -236,7 +236,7 @@ async def extract_seller_count(page):
         pass
 
     try:
-        body = (await page.locator("body").inner_text()) or ""
+        body = (await page.locator("body").text_content()) or ""
         m = re.search(r"New\s*\(\s*(\d+)\s*\)\s*from", body, flags=re.IGNORECASE)
         if m:
             return int(m.group(1))
@@ -269,8 +269,8 @@ async def extract_shipper_and_seller(page):
                     value_el = row.locator(".tabular-buybox-text-message, .tabular-buybox-value-container").first
                     if not await label_el.count() or not await value_el.count():
                         continue
-                    label_txt = (await label_el.inner_text()).strip().lower()
-                    value_txt = (await value_el.inner_text()).strip()
+                    label_txt = (await label_el.text_content()).strip().lower()
+                    value_txt = (await value_el.text_content()).strip()
                     if not value_txt:
                         continue
                     if "shipper" in label_txt and "seller" in label_txt:
@@ -293,8 +293,8 @@ async def extract_shipper_and_seller(page):
         count = min(await labels.count(), await values.count())
         for i in range(count):
             try:
-                label_txt = (await labels.nth(i).inner_text()).strip().lower()
-                value_txt = (await values.nth(i).inner_text()).strip()
+                label_txt = (await labels.nth(i).text_content()).strip().lower()
+                value_txt = (await values.nth(i).text_content()).strip()
                 # Use only the first line of the value text if multiple lines are present
                 value_txt = value_txt.split("\n")[0].strip()
                 if not value_txt:
@@ -319,7 +319,7 @@ async def extract_shipper_and_seller(page):
                 box = page.locator(buybox_sel).first
                 if not await box.count():
                     continue
-                txt = (await box.inner_text()) or ""
+                txt = (await box.text_content()) or ""
                 m = re.search(r"Shipper\s*/\s*Seller[:\s]+([^\n]+)", txt, re.IGNORECASE)
                 if m:
                     val = m.group(1).strip().split("\n")[0].strip()
@@ -345,7 +345,7 @@ async def extract_shipper_and_seller(page):
             try:
                 el = page.locator(sel).first
                 if await el.count():
-                    txt = (await el.inner_text()).strip()
+                    txt = (await el.text_content()).strip()
                     if not txt:
                         continue
                     if sel == "#sellerProfileTriggerId":
