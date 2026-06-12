@@ -474,17 +474,24 @@ async def scrape_product(context, url):
             price_locators = [
                 "#corePriceDisplay_desktop_feature_div .a-price .a-offscreen",
                 "#corePrice_desktop .a-price .a-offscreen",
+                "#tp_price_block_total_price_ww .a-price .a-offscreen",
+                ".apexPriceToPay .a-offscreen",
+                ".apex-pricetopay-value .a-offscreen",
                 "#priceblock_ourprice",
                 "#priceblock_dealprice",
                 ".a-price .a-offscreen",
                 "span.a-color-price"
             ]
             for selector in price_locators:
-                if await page.locator(selector).count() > 0:
-                    price_text = await page.locator(selector).first.inner_text()
-                    price = clean_price(price_text)
-                    if price:
-                        break
+                elements = await page.locator(selector).all()
+                if elements:
+                    # Use text_content() instead of inner_text() because Amazon visually hides .a-offscreen!
+                    # inner_text() ignores hidden elements and returns an empty string.
+                    price_text = await elements[0].text_content()
+                    if price_text:
+                        price = clean_price(price_text)
+                        if price:
+                            break
         except Exception:
             pass
 
