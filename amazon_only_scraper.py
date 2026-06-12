@@ -459,6 +459,9 @@ async def scrape_product(context, url):
                 await page.wait_for_selector("#buybox, #merchant-info, .tabular-buybox-text", state="attached", timeout=5000)
             except Exception:
                 pass
+            
+            # Wait a moment for Amazon's JS to inject dynamic pricing
+            await page.wait_for_timeout(1500)
         except Exception:
             return None
 
@@ -472,21 +475,19 @@ async def scrape_product(context, url):
 
         try:
             price_locators = [
-                "#corePriceDisplay_desktop_feature_div .a-price .a-offscreen",
-                "#corePrice_desktop .a-price .a-offscreen",
-                "#tp_price_block_total_price_ww .a-price .a-offscreen",
-                ".apexPriceToPay .a-offscreen",
-                ".apex-pricetopay-value .a-offscreen",
+                "#corePriceDisplay_desktop_feature_div .a-price",
+                "#corePrice_desktop .a-price",
+                "#tp_price_block_total_price_ww .a-price",
+                ".apexPriceToPay",
+                ".apex-pricetopay-value",
                 "#priceblock_ourprice",
                 "#priceblock_dealprice",
-                ".a-price .a-offscreen",
-                "span.a-color-price"
+                "span.a-color-price",
+                ".a-price"
             ]
             for selector in price_locators:
                 elements = await page.locator(selector).all()
                 if elements:
-                    # Use text_content() instead of inner_text() because Amazon visually hides .a-offscreen!
-                    # inner_text() ignores hidden elements and returns an empty string.
                     price_text = await elements[0].text_content()
                     if price_text:
                         price = clean_price(price_text)
