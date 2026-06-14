@@ -672,7 +672,10 @@ async def run_scraper(asins: list[str]) -> str:
                 else:
                     print(f"\n Error scraping ASINs: {e}", file=sys.stderr)
 
-        await context.close()
+        try:
+            await context.close()
+        except Exception as e:
+            pass # Ignore connection closed errors if browser already crashed
 
     print(f"\n Done — output file: {OUTPUT_FILE}")
     return OUTPUT_FILE
